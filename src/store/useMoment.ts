@@ -70,16 +70,15 @@ export function useMoment(): MomentState & { reload: () => Promise<void> } {
 export function useTicker(ms = 1000): Date {
   const [now, setNow] = useState<Date>(() => new Date());
   useEffect(() => {
-    const align = 1000 - (Date.now() % 1000);
-    const t1 = setTimeout(() => {
+    const align = ms - (Date.now() % ms);
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+    const timeoutId = setTimeout(() => {
       setNow(new Date());
-      const iv = setInterval(() => setNow(new Date()), ms);
-      (t1 as unknown as { _iv?: ReturnType<typeof setInterval> })._iv = iv;
+      intervalId = setInterval(() => setNow(new Date()), ms);
     }, align);
     return () => {
-      clearTimeout(t1);
-      const iv = (t1 as unknown as { _iv?: ReturnType<typeof setInterval> })._iv;
-      if (iv) clearInterval(iv);
+      clearTimeout(timeoutId);
+      if (intervalId !== null) clearInterval(intervalId);
     };
   }, [ms]);
   return now;
