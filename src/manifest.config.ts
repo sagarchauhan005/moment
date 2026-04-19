@@ -35,4 +35,10 @@ export default defineManifest({
     "48": "src/assets/icon-48.png",
     "128": "src/assets/icon-128.png",
   },
+  web_accessible_resources: [
+    {
+      matches: ["<all_urls>"],
+      resources: ["assets/*.mp3", "sounds/*.mp3"],
+    },
+  ],
 });

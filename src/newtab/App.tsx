@@ -15,6 +15,7 @@ import { SearchPanel } from "./components/SearchPanel";
 import { Onboarding } from "./components/Onboarding";
 import { tasksForList } from "@/lib/tasks";
 import { applyUIFont } from "@/lib/fonts";
+import { refreshWallpaper } from "@/lib/unsplash";
 import { Settings } from "lucide-react";
 
 export type PanelKey =
@@ -28,7 +29,10 @@ export type PanelKey =
 export function App() {
   const state = useMoment();
   const [panel, setPanel] = useState<PanelKey>(null);
+  /** When true, hide full-screen focus UI while a session may still be running (e.g. after ✕). */
+  const [focusOverlayDismissed, setFocusOverlayDismissed] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [wallpaperBusy, setWallpaperBusy] = useState(false);
 
   const tasksToday = useMemo(
     () => tasksForList(state.tasks, "today").filter((t) => !t.completed).length,
@@ -45,6 +49,10 @@ export function App() {
     if (state.ready) applyUIFont(state.prefs.uiFont);
   }, [state.ready, state.prefs.uiFont]);
 
+  useEffect(() => {
+    if (!state.focus.active) setFocusOverlayDismissed(false);
+  }, [state.focus.active]);
+
   // Keyboard shortcuts: "/" or Cmd/Ctrl+K open search; Escape closes panels.
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -56,6 +64,7 @@ export function App() {
           target.isContentEditable);
       if (e.key === "Escape") {
         setPanel(null);
+        setFocusOverlayDismissed(true);
         return;
       }
       if (typingInField) return;
@@ -72,13 +81,32 @@ export function App() {
     return <div className="absolute inset-0 bg-neutral-950" />;
   }
 
-  const focusActive = panel === "focus" || state.focus.active;
+  const focusActive =
+    (panel === "focus" || state.focus.active) && !focusOverlayDismissed;
+
+  const handleNewWallpaper = async () => {
+    if (wallpaperBusy) return;
+    setWallpaperBusy(true);
+    try {
+      await refreshWallpaper(state.wallpaper?.url);
+      await state.reload();
+    } finally {
+      setWallpaperBusy(false);
+    }
+  };
 
   return (
     <div className="absolute inset-0 text-white">
       <Background wallpaper={state.wallpaper} />
 
-      {!focusActive && <TopBar onOpen={setPanel} />}
+      {!focusActive && (
+        <TopBar
+          onOpen={(p) => {
+            setPanel(p);
+            if (p === "focus") setFocusOverlayDismissed(false);
+          }}
+        />
+      )}
       {!focusActive && (
         <StatsBar
           dailyLogs={state.dailyLogs}
@@ -107,7 +135,11 @@ export function App() {
           >
             <Settings className="w-[16px] h-[16px]" strokeWidth={1.5} />
           </button>
-          <WallpaperCredit wallpaper={state.wallpaper} />
+          <WallpaperCredit
+            wallpaper={state.wallpaper}
+            onNewWallpaper={handleNewWallpaper}
+            wallpaperBusy={wallpaperBusy}
+          />
         </div>
       )}
 
@@ -127,8 +159,14 @@ export function App() {
         />
       )}
 
-      {(panel === "focus" || state.focus.active) && (
-        <FocusMode focus={state.focus} onClose={() => setPanel(null)} />
+      {(panel === "focus" || state.focus.active) && !focusOverlayDismissed && (
+        <FocusMode
+          focus={state.focus}
+          onClose={() => {
+            setPanel(null);
+            setFocusOverlayDismissed(true);
+          }}
+        />
       )}
       {panel === "worldclock" && (
         <WorldClockPanel

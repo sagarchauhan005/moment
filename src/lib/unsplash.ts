@@ -117,3 +117,33 @@ function pickFallback(forDate: string): WallpaperCache {
     forDate,
   };
 }
+
+function pickRandomFallback(forDate: string, excludeUrl?: string): WallpaperCache {
+  let pool = FALLBACK_POOL;
+  if (excludeUrl) {
+    const filtered = FALLBACK_POOL.filter((p) => p.url !== excludeUrl);
+    if (filtered.length) pool = filtered;
+  }
+  const idx = Math.floor(Math.random() * pool.length);
+  return {
+    ...pool[idx],
+    fetchedAt: Date.now(),
+    forDate,
+  };
+}
+
+/** Fetches a new random wallpaper (API if configured, else curated pool) and persists it for today. */
+export async function refreshWallpaper(excludeImageUrl?: string): Promise<WallpaperCache> {
+  const prefs = await store.getPrefs();
+  const today = todayISO();
+  let next: WallpaperCache | null = null;
+
+  if (prefs.unsplashAccessKey) {
+    next = await fetchFromUnsplash(prefs.unsplashAccessKey, today).catch(() => null);
+  }
+  if (!next) {
+    next = pickRandomFallback(today, excludeImageUrl);
+  }
+  await store.setWallpaper(next);
+  return next;
+}

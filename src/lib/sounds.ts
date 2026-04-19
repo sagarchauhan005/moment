@@ -1,14 +1,13 @@
-import {
-  Noise, Filter, LFO, Oscillator, Gain, Panner,
-  start as toneStart, getDestination,
-} from "tone";
-import type { ToneAudioNode } from "tone";
+import rainAssetUrl from "@/assets/sounds/rain.mp3?url";
 
 export interface SoundDef {
   id: string;
   name: string;
   emoji: string;
 }
+
+/** Bundled default — used when starting a focus session (same click gesture as `audio.play()`). */
+export const DEFAULT_AMBIENT_SOUND_ID = "rain";
 
 export const SOUNDS: SoundDef[] = [
   { id: "rain",       name: "Rainfall",    emoji: "🌧" },
@@ -19,13 +18,52 @@ export const SOUNDS: SoundDef[] = [
   { id: "binaural",   name: "Binaural",    emoji: "🎵" },
 ];
 
-function gainToDb(v: number): number {
-  return 20 * Math.log10(Math.max(v, 0.0001));
+const FILE_NAMES: Record<string, string> = {
+  rain:       "rain.mp3",
+  ocean:      "ocean.mp3",
+  whitenoise: "white-noise.mp3",
+  brownnoise: "brown-noise.mp3",
+  forest:     "forest.mp3",
+  binaural:   "binaural.mp3",
+};
+
+/** Vite-bundled sounds — dev uses http(s) URLs so audio loads even when SW fetch proxy does not apply to <audio>. */
+const BUNDLED: Record<string, string> = {
+  rain: rainAssetUrl,
+};
+
+/**
+ * Resolves a Vite asset URL for the extension new tab (chrome-extension://) or dev server (http://localhost).
+ */
+function toPlayableUrl(viteResolved: string): string {
+  if (viteResolved.startsWith("http://") || viteResolved.startsWith("https://")) {
+    return viteResolved;
+  }
+  if (typeof chrome !== "undefined" && chrome.runtime?.getURL) {
+    return chrome.runtime.getURL(viteResolved.replace(/^\//, ""));
+  }
+  return viteResolved;
 }
 
+function soundUrl(id: string): string {
+  const bundled = BUNDLED[id];
+  if (bundled) return toPlayableUrl(bundled);
+
+  const file = FILE_NAMES[id] ?? `${id}.mp3`;
+  const path = `sounds/${file}`;
+  if (typeof chrome !== "undefined" && chrome.runtime?.getURL) {
+    return chrome.runtime.getURL(path);
+  }
+  return `/${path}`;
+}
+
+const FADE_STEPS = 20;
+const FADE_MS    = 600; // total fade duration
+
 export class SoundEngine {
+  private _audio: HTMLAudioElement | null = null;
   private _active: string | null = null;
-  private disposables: ToneAudioNode[] = [];
+  private _fadeTimer: ReturnType<typeof setInterval> | null = null;
 
   get active(): string | null { return this._active; }
 
@@ -39,97 +77,70 @@ export class SoundEngine {
   }
 
   async play(id: string, volume: number): Promise<void> {
-    this.stop();
-    await toneStart();
-    getDestination().volume.value = gainToDb(volume);
-
-    switch (id) {
-      case "rain":       this._buildRain();       break;
-      case "ocean":      this._buildOcean();      break;
-      case "forest":     this._buildForest();     break;
-      case "whitenoise": this._buildWhite();      break;
-      case "brownnoise": this._buildBrown();      break;
-      case "binaural":   this._buildBinaural();   break;
-      default:           this._buildRain();
-    }
+    this._stop();
+    const audio = new Audio(soundUrl(id));
+    audio.loop = true;
+    audio.volume = 0;
+    this._audio = audio;
     this._active = id;
+
+    const onError = (): void => {
+      audio.removeEventListener("error", onError);
+      this._stop();
+    };
+    audio.addEventListener("error", onError, { once: true });
+
+    try {
+      await audio.play();
+    } catch (e) {
+      this._stop();
+      throw e;
+    }
+
+    audio.removeEventListener("error", onError);
+    this._fadeTo(volume);
   }
 
   setVolume(v: number): void {
-    getDestination().volume.value = gainToDb(v);
+    this._clearFade();
+    if (this._audio) this._audio.volume = Math.max(0, Math.min(1, v));
   }
 
   stop(): void {
-    this.disposables.forEach((n) => { try { n.dispose(); } catch { /* ignore */ } });
-    this.disposables = [];
+    this._fadeTo(0, () => this._stop());
+  }
+
+  private _stop(): void {
+    this._clearFade();
+    if (this._audio) {
+      this._audio.pause();
+      this._audio.src = "";
+      this._audio = null;
+    }
     this._active = null;
   }
 
-  private _buildRain(): void {
-    const noise = new Noise({ type: "pink", volume: -6 });
-    const hp = new Filter({ frequency: 400, type: "highpass" });
-    const bp = new Filter({ frequency: 1800, type: "bandpass", Q: 0.8 });
-    noise.connect(hp);
-    hp.connect(bp);
-    bp.toDestination();
-    noise.start();
-    this.disposables = [noise, hp, bp];
+  private _clearFade(): void {
+    if (this._fadeTimer !== null) {
+      clearInterval(this._fadeTimer);
+      this._fadeTimer = null;
+    }
   }
 
-  private _buildOcean(): void {
-    const noise = new Noise({ type: "brown", volume: -3 });
-    const filter = new Filter({ frequency: 400, type: "lowpass" });
-    const lfo = new LFO({ frequency: 0.12, min: 150, max: 600 });
-    noise.connect(filter);
-    filter.toDestination();
-    lfo.connect(filter.frequency);
-    noise.start();
-    lfo.start();
-    this.disposables = [noise, filter, lfo];
-  }
-
-  private _buildForest(): void {
-    const noise = new Noise({ type: "pink", volume: -8 });
-    const hp = new Filter({ frequency: 900, type: "highpass" });
-    const peak = new Filter({ frequency: 2000, type: "peaking", gain: 5 });
-    noise.connect(hp);
-    hp.connect(peak);
-    peak.toDestination();
-    noise.start();
-    this.disposables = [noise, hp, peak];
-  }
-
-  private _buildWhite(): void {
-    const noise = new Noise({ type: "white", volume: -12 });
-    noise.toDestination();
-    noise.start();
-    this.disposables = [noise];
-  }
-
-  private _buildBrown(): void {
-    const noise = new Noise({ type: "brown", volume: -6 });
-    const lp = new Filter({ frequency: 400, type: "lowpass" });
-    noise.connect(lp);
-    lp.toDestination();
-    noise.start();
-    this.disposables = [noise, lp];
-  }
-
-  private _buildBinaural(): void {
-    const leftOsc  = new Oscillator({ frequency: 200, type: "sine" });
-    const rightOsc = new Oscillator({ frequency: 210, type: "sine" });
-    const leftGain  = new Gain(0.2);
-    const rightGain = new Gain(0.2);
-    const leftPan  = new Panner(-1);
-    const rightPan = new Panner(1);
-    leftOsc.connect(leftGain);
-    leftGain.connect(leftPan);
-    leftPan.toDestination();
-    rightOsc.connect(rightGain);
-    rightGain.connect(rightPan);
-    rightPan.toDestination();
-    leftOsc.start();
-    rightOsc.start();
-    this.disposables = [leftOsc, rightOsc, leftGain, rightGain, leftPan, rightPan];
+  private _fadeTo(target: number, onDone?: () => void): void {
+    this._clearFade();
+    const audio = this._audio;
+    if (!audio) { onDone?.(); return; }
+    const start = audio.volume;
+    const delta = (target - start) / FADE_STEPS;
+    let step = 0;
+    this._fadeTimer = setInterval(() => {
+      step++;
+      audio.volume = Math.max(0, Math.min(1, start + delta * step));
+      if (step >= FADE_STEPS) {
+        this._clearFade();
+        onDone?.();
+      }
+    }, FADE_MS / FADE_STEPS);
   }
 }

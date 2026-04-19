@@ -24,10 +24,10 @@ export function Background({ wallpaper }: { wallpaper: WallpaperCache | null }) 
   }, [current?.url]);
 
   return (
-    <div className="absolute inset-0 vignette">
+    <div className="absolute inset-0">
       {current?.thumbUrl && (
         <div
-          className="absolute inset-0 bg-center bg-cover transition-opacity duration-[1200ms]"
+          className="absolute inset-0 z-0 bg-center bg-cover transition-opacity duration-[1200ms]"
           style={{
             backgroundImage: `url(${current.thumbUrl})`,
             filter: "blur(20px)",
@@ -38,26 +38,45 @@ export function Background({ wallpaper }: { wallpaper: WallpaperCache | null }) 
       )}
       {current?.url && (
         <div
-          className="absolute inset-0 bg-center bg-cover transition-opacity duration-[1200ms] ease-out"
+          className="absolute inset-0 z-0 bg-center bg-cover transition-opacity duration-[1200ms] ease-out"
           style={{
             backgroundImage: `url(${current.url})`,
             opacity: loaded ? 1 : 0,
           }}
         />
       )}
-      {!current && <div className="absolute inset-0 bg-neutral-900" />}
+      {!current && <div className="absolute inset-0 z-0 bg-neutral-900" />}
+      {(current?.url || current?.thumbUrl) && (
+        <div className="wallpaper-overlay" aria-hidden />
+      )}
     </div>
   );
 }
 
-export function WallpaperCredit({ wallpaper }: { wallpaper: WallpaperCache | null }) {
+export function WallpaperCredit({
+  wallpaper,
+  onNewWallpaper,
+  wallpaperBusy,
+}: {
+  wallpaper: WallpaperCache | null;
+  onNewWallpaper: () => void | Promise<void>;
+  wallpaperBusy?: boolean;
+}) {
   if (!wallpaper) return null;
   return (
     <div
       className="text-[11.5px] text-white/75 font-medium flex items-center gap-1.5"
       style={{ textShadow: "0 1px 8px rgba(0,0,0,0.5)" }}
     >
-      <span>{wallpaper.location ?? "Unsplash"}</span>
+      <button
+        type="button"
+        onClick={() => void onNewWallpaper()}
+        disabled={wallpaperBusy}
+        className="bg-transparent border-0 p-0 font-inherit text-inherit hover:text-white/90 disabled:opacity-50 cursor-pointer disabled:cursor-wait"
+        title="New wallpaper"
+      >
+        {wallpaper.location ?? "Unsplash"}
+      </button>
       {wallpaper.photographer && (
         <>
           <span className="opacity-50">·</span>

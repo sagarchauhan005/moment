@@ -10,7 +10,11 @@ import {
 import { endFocus, startFocus } from "@/lib/focus";
 import { todayISO } from "@/lib/time";
 import { store } from "@/lib/storage";
-import { SoundEngine, SOUNDS } from "@/lib/sounds";
+import {
+  DEFAULT_AMBIENT_SOUND_ID,
+  SoundEngine,
+  SOUNDS,
+} from "@/lib/sounds";
 import type { FocusState } from "@/types";
 
 const PRESETS = [15, 25, 45, 60, 90];
@@ -95,8 +99,12 @@ export function FocusMode({
   useEffect(() => () => engine.stop(), []);
 
   const toggleSound = async (id: string) => {
-    const on = await engine.toggle(id, volume);
-    setActiveSound(on ? id : null);
+    try {
+      const on = await engine.toggle(id, volume);
+      setActiveSound(on ? id : null);
+    } catch {
+      setActiveSound(null);
+    }
   };
 
   const handleVolumeChange = (v: number) => {
@@ -105,6 +113,12 @@ export function FocusMode({
   };
 
   const handleStart = async () => {
+    // Start audio in the same synchronous turn as the click so autoplay policy allows it.
+    // Do not await startFocus first — that yields and can consume the user gesture.
+    const started = engine.play(DEFAULT_AMBIENT_SOUND_ID, volume);
+    void started
+      .then(() => setActiveSound(DEFAULT_AMBIENT_SOUND_ID))
+      .catch(() => setActiveSound(null));
     await startFocus(duration);
   };
 
@@ -152,24 +166,51 @@ export function FocusMode({
 
       {/* ── Top bar ── */}
       <div className="absolute top-0 left-0 right-0 flex items-start justify-between px-7 pt-6 z-10">
-        {/* Left: sound toggle */}
-        <button
-          onClick={() => setSoundOpen((v) => !v)}
-          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-[13px] font-medium transition ${
-            activeSound
-              ? "bg-white/15 text-white"
-              : "text-white/60 hover:bg-white/10 hover:text-white/80"
-          }`}
-        >
-          {activeSound ? (
-            <Volume2 className="w-[15px] h-[15px]" strokeWidth={1.8} />
-          ) : (
-            <VolumeX className="w-[15px] h-[15px]" strokeWidth={1.8} />
+        {/* Left: sound + volume (volume always visible during a session) */}
+        <div className="flex flex-wrap items-center gap-3 min-w-0">
+          <button
+            type="button"
+            onClick={() => setSoundOpen((v) => !v)}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-[13px] font-medium transition shrink-0 ${
+              activeSound
+                ? "bg-white/15 text-white"
+                : "text-white/60 hover:bg-white/10 hover:text-white/80"
+            }`}
+          >
+            {activeSound ? (
+              <Volume2 className="w-[15px] h-[15px]" strokeWidth={1.8} />
+            ) : (
+              <VolumeX className="w-[15px] h-[15px]" strokeWidth={1.8} />
+            )}
+            {activeSound
+              ? SOUNDS.find((s) => s.id === activeSound)?.name
+              : "Sounds"}
+          </button>
+          {focus.active && focus.session && (
+            <div className="flex items-center gap-2 min-w-0 max-w-[min(100vw-8rem,220px)]">
+              <VolumeX
+                className="w-[14px] h-[14px] text-white/40 shrink-0"
+                strokeWidth={1.8}
+                aria-hidden
+              />
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.02}
+                value={volume}
+                onChange={(e) => handleVolumeChange(Number(e.target.value))}
+                className="flex-1 min-w-0 h-1 accent-white cursor-pointer"
+                aria-label="Ambient volume"
+              />
+              <Volume2
+                className="w-[14px] h-[14px] text-white/40 shrink-0"
+                strokeWidth={1.8}
+                aria-hidden
+              />
+            </div>
           )}
-          {activeSound
-            ? SOUNDS.find((s) => s.id === activeSound)?.name
-            : "Sounds"}
-        </button>
+        </div>
 
         {/* Right: stat + close */}
         <div className="flex items-center gap-5">

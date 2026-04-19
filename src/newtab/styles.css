@@ -25,18 +25,24 @@ html, body, #root {
   background: transparent;
 }
 
-/* Subtle top/bottom vignette for legibility on busy wallpapers */
-.vignette::before {
-  content: "";
+/*
+ * Sits above the photo layers. No backdrop-blur here — that blurred the whole
+ * wallpaper. A light scrim + edge gradients keeps white UI readable without
+ * softening the image.
+ */
+.wallpaper-overlay {
   position: absolute;
   inset: 0;
+  z-index: 1;
   pointer-events: none;
-  background:
-    linear-gradient(to bottom,
-      rgba(0, 0, 0, 0.35) 0%,
-      rgba(0, 0, 0, 0) 18%,
-      rgba(0, 0, 0, 0) 65%,
-      rgba(0, 0, 0, 0.45) 100%);
+  background-color: rgba(0, 0, 0, 0.07);
+  background-image: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.24) 0%,
+    rgba(0, 0, 0, 0) 20%,
+    rgba(0, 0, 0, 0) 75%,
+    rgba(0, 0, 0, 0.3) 100%
+  );
 }
 
 /* Input line for "main goal" */
