@@ -1,108 +1,95 @@
-import type { Task } from "@/types";
-
 const ENDPOINT = "https://api.linear.app/graphql";
 
-interface LinearIssue {
-  id: string;
-  identifier: string;
-  title: string;
-  completedAt: string | null;
-  createdAt: string;
-  dueDate: string | null;
-  state: { name: string; type: string };
-}
-
-export async function fetchMyLinearIssues(apiKey: string): Promise<Task[]> {
-  const query = `
-    query MyIssues {
-      viewer {
-        assignedIssues(
-          first: 50,
-          filter: { state: { type: { nin: ["completed", "canceled"] } } }
-        ) {
-          nodes {
-            id
-            identifier
-            title
-            completedAt
-            createdAt
-            dueDate
-            state { name type }
-          }
-        }
-      }
-    }
-  `;
+async function gql(apiKey: string, query: string, variables?: Record<string, unknown>) {
   const res = await fetch(ENDPOINT, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: apiKey,
-    },
-    body: JSON.stringify({ query }),
+    headers: { "Content-Type": "application/json", Authorization: apiKey },
+    body: JSON.stringify({ query, variables }),
   });
   if (!res.ok) throw new Error(`Linear ${res.status}`);
   const json = await res.json();
   if (json.errors) throw new Error(json.errors[0]?.message ?? "Linear error");
-  const nodes: LinearIssue[] =
-    json.data?.viewer?.assignedIssues?.nodes ?? [];
-
-  return nodes.map<Task>((n) => ({
-    id: `linear:${n.id}`,
-    externalId: n.id,
-    title: `${n.identifier} · ${n.title}`,
-    completed: !!n.completedAt,
-    completedAt: n.completedAt ? new Date(n.completedAt).getTime() : undefined,
-    createdAt: new Date(n.createdAt).getTime(),
-    dueAt: n.dueDate ? new Date(n.dueDate).getTime() : undefined,
-    source: "linear",
-    listId: "linear",
-  }));
+  return json;
 }
 
-export async function completeLinearIssue(
+export async function ensureFlowProject(apiKey: string): Promise<{ projectId: string; teamId: string }> {
+  // Check for existing "Flow" project
+  const findRes = await gql(apiKey, `
+    query {
+      projects(filter: { name: { eq: "Flow" } }, first: 1) {
+        nodes { id teams { nodes { id } } }
+      }
+    }
+  `);
+  const existing = findRes.data?.projects?.nodes?.[0];
+  if (existing) {
+    return { projectId: existing.id as string, teamId: existing.teams.nodes[0]?.id as string };
+  }
+
+  // Get first team the viewer belongs to
+  const teamRes = await gql(apiKey, `
+    query {
+      viewer {
+        teamMemberships(first: 1) { nodes { team { id } } }
+      }
+    }
+  `);
+  const teamId: string | undefined =
+    teamRes.data?.viewer?.teamMemberships?.nodes?.[0]?.team?.id;
+  if (!teamId) throw new Error("No Linear team found");
+
+  // Create "Flow" project
+  const createRes = await gql(apiKey, `
+    mutation CreateFlow($name: String!, $teamId: String!) {
+      projectCreate(input: { name: $name, teamIds: [$teamId], state: "started", color: "#6366f1" }) {
+        success
+        project { id }
+      }
+    }
+  `, { name: "Flow", teamId });
+  const projectId: string = createRes.data?.projectCreate?.project?.id;
+  if (!projectId) throw new Error("Failed to create Linear Flow project");
+  return { projectId, teamId };
+}
+
+export async function createLinearFlowIssue(
   apiKey: string,
-  issueId: string
-): Promise<void> {
-  const stateQ = `
+  projectId: string,
+  teamId: string,
+  title: string
+): Promise<string> {
+  const res = await gql(apiKey, `
+    mutation CreateIssue($title: String!, $projectId: String!, $teamId: String!) {
+      issueCreate(input: { title: $title, projectId: $projectId, teamId: $teamId }) {
+        success
+        issue { id }
+      }
+    }
+  `, { title, projectId, teamId });
+  const id: string = res.data?.issueCreate?.issue?.id;
+  if (!id) throw new Error("Failed to create Linear issue");
+  return id;
+}
+
+export async function completeLinearIssue(apiKey: string, issueId: string): Promise<void> {
+  const stateRes = await gql(apiKey, `
     query IssueWithStates($id: String!) {
       issue(id: $id) {
         team {
           states(filter: { type: { eq: "completed" } }) {
-            nodes { id name type }
+            nodes { id }
           }
         }
       }
     }
-  `;
-  const stateRes = await fetch(ENDPOINT, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: apiKey,
-    },
-    body: JSON.stringify({ query: stateQ, variables: { id: issueId } }),
-  });
-  const stateJson = await stateRes.json();
+  `, { id: issueId });
   const doneId: string | undefined =
-    stateJson.data?.issue?.team?.states?.nodes?.[0]?.id;
+    stateRes.data?.issue?.team?.states?.nodes?.[0]?.id;
   if (!doneId) throw new Error("No completed state found for team");
 
-  const mutation = `
+  await gql(apiKey, `
     mutation Complete($issueId: String!, $stateId: String!) {
       issueUpdate(id: $issueId, input: { stateId: $stateId }) { success }
     }
-  `;
-  const res = await fetch(ENDPOINT, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: apiKey,
-    },
-    body: JSON.stringify({
-      query: mutation,
-      variables: { issueId, stateId: doneId },
-    }),
-  });
-  if (!res.ok) throw new Error(`Linear ${res.status}`);
+  `, { issueId, stateId: doneId });
 }

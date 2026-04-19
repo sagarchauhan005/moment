@@ -1,10 +1,17 @@
 import { store } from "@/lib/storage";
 import { endFocus } from "@/lib/focus";
 import { ensureDailyWallpaper } from "@/lib/unsplash";
-import { completeLinearIssue, fetchMyLinearIssues } from "@/lib/linear";
-import { completeTrelloCard, fetchMyTrelloCards } from "@/lib/trello";
-import { completeAsanaTask, fetchMyAsanaTasks } from "@/lib/asana";
-import type { Task, TaskList, TaskSource } from "@/types";
+import {
+  completeLinearIssue,
+  createLinearFlowIssue,
+  ensureFlowProject as ensureLinearFlowProject,
+} from "@/lib/linear";
+import {
+  completeAsanaTask,
+  createAsanaFlowTask,
+  ensureFlowProject as ensureAsanaFlowProject,
+} from "@/lib/asana";
+import type { TaskSource } from "@/types";
 
 // --- Lifecycle --------------------------------------------------------
 
@@ -78,18 +85,53 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         const prefs = await store.getPrefs();
         if (source === "linear" && prefs.linearApiKey) {
           await completeLinearIssue(prefs.linearApiKey, externalId);
-        } else if (
-          source === "trello" &&
-          prefs.trelloApiKey &&
-          prefs.trelloToken
-        ) {
-          await completeTrelloCard(
-            prefs.trelloApiKey,
-            prefs.trelloToken,
-            externalId
-          );
         } else if (source === "asana" && prefs.asanaToken) {
           await completeAsanaTask(prefs.asanaToken, externalId);
+        }
+        sendResponse({ ok: true });
+      } catch (e) {
+        sendResponse({ ok: false, error: (e as Error).message });
+      }
+    })();
+    return true;
+  }
+
+  // Push a locally-created Flow task to connected external tools.
+  if (type === "push-flow-task") {
+    (async () => {
+      const { taskId, title } = msg as { taskId: string; title: string };
+      try {
+        const prefs = await store.getPrefs();
+        let externalId: string | undefined;
+        let source: TaskSource | undefined;
+
+        if (prefs.asanaToken && prefs.asanaFlowProjectGid) {
+          externalId = await createAsanaFlowTask(
+            prefs.asanaToken,
+            prefs.asanaFlowProjectGid,
+            title
+          );
+          source = "asana";
+        } else if (prefs.linearApiKey && prefs.linearFlowProjectId) {
+          // Retrieve team id from project (stored alongside projectId as "pid|tid")
+          const [projectId, teamId] = prefs.linearFlowProjectId.split("|");
+          externalId = await createLinearFlowIssue(
+            prefs.linearApiKey,
+            projectId,
+            teamId,
+            title
+          );
+          source = "linear";
+        }
+
+        if (externalId && source) {
+          // Update the local task with its external reference.
+          const tasks = await store.getTasks();
+          const idx = tasks.findIndex((t) => t.id === taskId);
+          if (idx !== -1) {
+            tasks[idx] = { ...tasks[idx], externalId, source };
+            await store.setTasks(tasks);
+          }
         }
         sendResponse({ ok: true });
       } catch (e) {
@@ -105,90 +147,77 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 // --- Sync --------------------------------------------------------------
 
 interface SyncSummary {
-  linear?: number;
-  trello?: number;
-  asana?: number;
+  pushed: number;
   errors: string[];
 }
 
 async function syncAllRemote(): Promise<SyncSummary> {
   const prefs = await store.getPrefs();
-  const summary: SyncSummary = { errors: [] };
+  const summary: SyncSummary = { pushed: 0, errors: [] };
 
-  const fetches: Promise<{ source: TaskSource; tasks: Task[] }>[] = [];
-
-  if (prefs.linearApiKey) {
-    fetches.push(
-      fetchMyLinearIssues(prefs.linearApiKey)
-        .then((tasks) => ({ source: "linear" as const, tasks }))
-        .catch((e) => {
-          summary.errors.push(`Linear: ${(e as Error).message}`);
-          return { source: "linear" as const, tasks: [] };
-        })
-    );
-  }
-  if (prefs.trelloApiKey && prefs.trelloToken) {
-    fetches.push(
-      fetchMyTrelloCards(prefs.trelloApiKey, prefs.trelloToken)
-        .then((tasks) => ({ source: "trello" as const, tasks }))
-        .catch((e) => {
-          summary.errors.push(`Trello: ${(e as Error).message}`);
-          return { source: "trello" as const, tasks: [] };
-        })
-    );
-  }
-  if (prefs.asanaToken) {
-    fetches.push(
-      fetchMyAsanaTasks(prefs.asanaToken)
-        .then((tasks) => ({ source: "asana" as const, tasks }))
-        .catch((e) => {
-          summary.errors.push(`Asana: ${(e as Error).message}`);
-          return { source: "asana" as const, tasks: [] };
-        })
-    );
-  }
-
-  if (fetches.length === 0) return summary;
-
-  const results = await Promise.all(fetches);
-  const existing = await store.getTasks();
-  const local = existing.filter((t) => t.source === "local");
-
-  // For each remote source we refetched, replace that source's tasks entirely
-  // but preserve local-only "completed" toggles via merge on id.
-  const existingById = new Map(existing.map((t) => [t.id, t]));
-  const syncedSources = new Set(results.map((r) => r.source));
-  const preserved = existing.filter(
-    (t) => t.source !== "local" && !syncedSources.has(t.source)
-  );
-
-  const merged: Task[] = [...local, ...preserved];
-  for (const { source, tasks } of results) {
-    if (source !== "local") summary[source] = tasks.length;
-    for (const t of tasks) {
-      const prev = existingById.get(t.id);
-      merged.push(prev ? { ...t, completed: t.completed || prev.completed } : t);
+  // Ensure Flow projects exist in connected tools on first sync.
+  if (prefs.asanaToken && !prefs.asanaFlowProjectGid) {
+    try {
+      const gid = await ensureAsanaFlowProject(prefs.asanaToken);
+      await store.patchPrefs({ asanaFlowProjectGid: gid });
+      prefs.asanaFlowProjectGid = gid;
+    } catch (e) {
+      summary.errors.push(`Asana setup: ${(e as Error).message}`);
     }
   }
 
-  await store.setTasks(merged);
-
-  // Ensure source lists exist.
-  const lists = await store.getLists();
-  const byId = new Map(lists.map((l) => [l.id, l]));
-  const additions: TaskList[] = [];
-  if (syncedSources.has("linear") && !byId.has("linear")) {
-    additions.push({ id: "linear", name: "Linear", source: "linear" });
-  }
-  if (syncedSources.has("trello") && !byId.has("trello")) {
-    additions.push({ id: "trello", name: "Trello", source: "trello" });
-  }
-  if (syncedSources.has("asana") && !byId.has("asana")) {
-    additions.push({ id: "asana", name: "Asana", source: "asana" });
-  }
-  if (additions.length) {
-    await store.setLists([...lists, ...additions]);
+  if (prefs.linearApiKey && !prefs.linearFlowProjectId) {
+    try {
+      const { projectId, teamId } = await ensureLinearFlowProject(prefs.linearApiKey);
+      await store.patchPrefs({ linearFlowProjectId: `${projectId}|${teamId}` });
+      prefs.linearFlowProjectId = `${projectId}|${teamId}`;
+    } catch (e) {
+      summary.errors.push(`Linear setup: ${(e as Error).message}`);
+    }
   }
 
+  // Push any local tasks that haven't been synced to an external tool yet.
+  const tasks = await store.getTasks();
+  const unsynced = tasks.filter(
+    (t) => t.source === "local" && !t.externalId && !t.completed
+  );
+
+  if (unsynced.length === 0) return summary;
+
+  const updated = [...tasks];
+  for (const task of unsynced) {
+    try {
+      let externalId: string | undefined;
+      let source: TaskSource | undefined;
+
+      if (prefs.asanaToken && prefs.asanaFlowProjectGid) {
+        externalId = await createAsanaFlowTask(
+          prefs.asanaToken,
+          prefs.asanaFlowProjectGid,
+          task.title
+        );
+        source = "asana";
+      } else if (prefs.linearApiKey && prefs.linearFlowProjectId) {
+        const [projectId, teamId] = prefs.linearFlowProjectId.split("|");
+        externalId = await createLinearFlowIssue(
+          prefs.linearApiKey,
+          projectId,
+          teamId,
+          task.title
+        );
+        source = "linear";
+      }
+
+      if (externalId && source) {
+        const idx = updated.findIndex((t) => t.id === task.id);
+        if (idx !== -1) updated[idx] = { ...updated[idx], externalId, source };
+        summary.pushed++;
+      }
+    } catch (e) {
+      summary.errors.push(`Push "${task.title}": ${(e as Error).message}`);
+    }
+  }
+
+  if (summary.pushed > 0) await store.setTasks(updated);
   return summary;
 }

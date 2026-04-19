@@ -6,10 +6,11 @@ export function Clock() {
   return (
     <div className="text-center select-none">
       <div
-        className="font-display text-clock font-extralight tracking-tight text-white/95"
+        className="font-display text-clock font-semibold tracking-tight text-white"
         style={{
-          textShadow: "0 2px 30px rgba(0,0,0,0.35)",
+          textShadow: "0 2px 30px rgba(0,0,0,0.45)",
           fontVariantNumeric: "tabular-nums",
+          letterSpacing: "-0.05em",
         }}
       >
         {formatTime(now, true)}

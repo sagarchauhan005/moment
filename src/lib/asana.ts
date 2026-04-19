@@ -1,67 +1,89 @@
-import type { Task } from "@/types";
+const BASE = "https://app.asana.com/api/1.0";
 
-interface AsanaTask {
-  gid: string;
-  name: string;
-  completed: boolean;
-  completed_at: string | null;
-  created_at: string;
-  due_on: string | null;
-  permalink_url?: string;
+async function asanaThrow(res: Response, path: string): Promise<never> {
+  let detail = "";
+  try {
+    const body = await res.json();
+    detail = body?.errors?.[0]?.message ?? JSON.stringify(body);
+  } catch { /* ignore parse errors */ }
+  throw new Error(`Asana ${res.status} ${path}${detail ? `: ${detail}` : ""}`);
 }
 
-export async function fetchMyAsanaTasks(token: string): Promise<Task[]> {
-  // Step 1: resolve the default workspace for this user.
-  const meRes = await fetch("https://app.asana.com/api/1.0/users/me", {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  if (!meRes.ok) throw new Error(`Asana auth ${meRes.status}`);
-  const me = await meRes.json();
-  const workspace: string | undefined = me.data?.workspaces?.[0]?.gid;
-  if (!workspace) throw new Error("No Asana workspace found");
-
-  // Step 2: fetch assigned, incomplete tasks in that workspace.
-  const url = new URL("https://app.asana.com/api/1.0/tasks");
-  url.searchParams.set("assignee", "me");
-  url.searchParams.set("workspace", workspace);
-  url.searchParams.set("completed_since", "now"); // only incomplete
-  url.searchParams.set("limit", "50");
-  url.searchParams.set(
-    "opt_fields",
-    "name,completed,completed_at,created_at,due_on,permalink_url"
-  );
-
-  const res = await fetch(url.toString(), {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  if (!res.ok) throw new Error(`Asana ${res.status}`);
-  const data = await res.json();
-  const tasks = (data.data ?? []) as AsanaTask[];
-
-  return tasks.map<Task>((t) => ({
-    id: `asana:${t.gid}`,
-    externalId: t.gid,
-    title: t.name,
-    completed: !!t.completed,
-    completedAt: t.completed_at ? new Date(t.completed_at).getTime() : undefined,
-    createdAt: new Date(t.created_at).getTime(),
-    dueAt: t.due_on ? new Date(t.due_on + "T00:00:00").getTime() : undefined,
-    source: "asana",
-    listId: "asana",
-  }));
+async function asanaGet(token: string, path: string, params?: Record<string, string>) {
+  const url = new URL(`${BASE}${path}`);
+  if (params) Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+  const res = await fetch(url.toString(), { headers: { Authorization: `Bearer ${token}` } });
+  if (!res.ok) await asanaThrow(res, path);
+  return res.json();
 }
 
-export async function completeAsanaTask(
-  token: string,
-  taskGid: string
-): Promise<void> {
-  const res = await fetch(`https://app.asana.com/api/1.0/tasks/${taskGid}`, {
+async function asanaPost(token: string, path: string, body: unknown) {
+  const res = await fetch(`${BASE}${path}`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ data: body }),
+  });
+  if (!res.ok) await asanaThrow(res, path);
+  return res.json();
+}
+
+async function asanaPut(token: string, path: string, body: unknown) {
+  const res = await fetch(`${BASE}${path}`, {
     method: "PUT",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ data: { completed: true } }),
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ data: body }),
   });
-  if (!res.ok) throw new Error(`Asana ${res.status}`);
+  if (!res.ok) await asanaThrow(res, path);
+}
+
+export async function testAsanaToken(token: string): Promise<{ name: string; email: string }> {
+  const me = await asanaGet(token, "/users/me", { opt_fields: "name,email" });
+  return { name: me.data?.name ?? "Unknown", email: me.data?.email ?? "" };
+}
+
+async function getWorkspace(token: string): Promise<string> {
+  const me = await asanaGet(token, "/users/me", { opt_fields: "workspaces.gid" });
+  const gid: string | undefined = me.data?.workspaces?.[0]?.gid;
+  if (!gid) throw new Error("No Asana workspace found");
+  return gid;
+}
+
+export async function ensureFlowProject(token: string): Promise<string> {
+  const workspace = await getWorkspace(token);
+
+  // Search for existing project named "Flow"
+  const list = await asanaGet(token, `/workspaces/${workspace}/projects`, {
+    opt_fields: "gid,name",
+    limit: "100",
+  });
+  const existing = (list.data as { gid: string; name: string }[]).find(
+    (p) => p.name === "Flow"
+  );
+  if (existing) return existing.gid;
+
+  // Create it
+  const created = await asanaPost(token, "/projects", {
+    name: "Flow",
+    workspace,
+    color: "light-purple",
+    default_view: "list",
+  });
+  return created.data.gid as string;
+}
+
+export async function createAsanaFlowTask(
+  token: string,
+  projectGid: string,
+  title: string
+): Promise<string> {
+  const res = await asanaPost(token, "/tasks", {
+    name: title,
+    projects: [projectGid],
+    assignee: "me",
+  });
+  return res.data.gid as string;
+}
+
+export async function completeAsanaTask(token: string, taskGid: string): Promise<void> {
+  await asanaPut(token, `/tasks/${taskGid}`, { completed: true });
 }

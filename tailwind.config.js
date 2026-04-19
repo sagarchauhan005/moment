@@ -5,7 +5,7 @@ export default {
     extend: {
       fontFamily: {
         display: [
-          "Inter",
+          "var(--moment-font, 'Pretendard')",
           "ui-sans-serif",
           "system-ui",
           "-apple-system",

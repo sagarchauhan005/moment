@@ -59,21 +59,41 @@ export async function renameTask(id: string, title: string): Promise<void> {
   await store.setTasks(tasks);
 }
 
+export async function patchTask(id: string, patch: Partial<Task>): Promise<void> {
+  const tasks = await store.getTasks();
+  const idx = tasks.findIndex((t) => t.id === id);
+  if (idx === -1) return;
+  tasks[idx] = { ...tasks[idx], ...patch };
+  await store.setTasks(tasks);
+}
+
+export async function reorderTasks(orderedIds: string[]): Promise<void> {
+  const tasks = await store.getTasks();
+  const idxMap = new Map(orderedIds.map((id, i) => [id, i]));
+  await store.setTasks(tasks.map((t) => idxMap.has(t.id) ? { ...t, sortOrder: idxMap.get(t.id)! } : t));
+}
+
 export function tasksForList(tasks: Task[], listId: string): Task[] {
   if (listId === "completed") return tasks.filter((t) => t.completed);
+
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+  const todayMs = startOfToday.getTime();
+
   if (listId === "today") {
     const today = todayISO();
     return tasks.filter((t) => {
-      if (t.completed && t.completedAt) {
-        const d = new Date(t.completedAt);
-        return todayISO(d) === today;
-      }
-      if (t.dueAt) {
-        const d = new Date(t.dueAt);
-        return todayISO(d) === today;
-      }
+      if (t.listId === "today" && !t.completed) return true;
+      if (!t.completed && t.dueAt && todayISO(new Date(t.dueAt)) === today) return true;
+      if (t.completed && t.completedAt && t.completedAt >= todayMs) return true;
       return false;
     });
   }
-  return tasks.filter((t) => t.listId === listId);
+
+  return tasks.filter((t) => {
+    if (t.listId !== listId) return false;
+    // hide tasks completed before today — they live in the Completed view
+    if (t.completed && (!t.completedAt || t.completedAt < todayMs)) return false;
+    return true;
+  });
 }

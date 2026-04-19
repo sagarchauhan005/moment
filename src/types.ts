@@ -1,4 +1,4 @@
-export type TaskSource = "local" | "linear" | "trello" | "asana";
+export type TaskSource = "local" | "linear" | "asana";
 
 export interface QuickLink {
   id: string;
@@ -16,6 +16,8 @@ export interface Task {
   source: TaskSource;
   externalId?: string;
   listId: string;
+  priority?: "high" | "medium" | "low" | null;
+  sortOrder?: number;
 }
 
 export interface TaskList {
@@ -62,13 +64,15 @@ export interface UserPrefs {
   worldClockCities: WorldClockCity[];
   unsplashAccessKey?: string;
   linearApiKey?: string;
-  trelloApiKey?: string;
-  trelloToken?: string;
+  linearFlowProjectId?: string;
   asanaToken?: string;
+  asanaFlowProjectGid?: string;
   links: QuickLink[];
   searchEngine: "google" | "duckduckgo" | "bing";
   activeListId: string;
   units: "metric" | "imperial";
+  uiFont?: string;
+  taskInboxOpenedAt?: number | null;
 }
 
 export interface WorldClockCity {

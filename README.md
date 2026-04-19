@@ -1,100 +1,144 @@
-# Moment
+# Moment — A Beautiful New Tab
 
-A beautiful, minimalist new tab experience for Chrome — a Momentum-inspired
-clone with a personal twist: Linear sync, a soft-block focus mode, world clock,
-and a small productivity dashboard.
+A minimalist, Momentum-inspired Chrome extension that replaces your new tab with a calm, productive workspace.
+
+![Moment preview](screenshots/preview.png)
+
+---
 
 ## Features
 
-- **Daily wallpaper** — a new landscape image each day from Unsplash (with a
-  curated fallback set when no API key is configured).
-- **Clock, date, greeting & main goal** — the calm heart of the page.
-- **Task Inbox** — local tasks plus your assigned Linear issues, auto-synced
-  every 15 minutes. Check/uncheck right from the new tab.
-- **Focus mode** — pick 15/25/45/60/90 min. Your chosen distractions get a
-  gentle "Are you sure?" overlay while the session runs. Always bypassable.
-- **World clock** — live times across any cities you care about.
-- **Analytics** — completed today, open today, streak, aging tasks, a 28-day
-  trend chart, plus week/month/quarter comparisons vs the previous period.
-- **Quote of the day** — a single calm thought, stable per day.
+### Core
+- **Daily wallpaper** — fresh landscape from Unsplash each day, with a curated built-in fallback set
+- **Clock, greeting & main goal** — the calm centre of every new tab
+- **Ambient sounds** — rain, ocean, forest, white noise, brown noise, binaural beats during focus sessions
 
-Everything is stored locally. The only network calls are Unsplash (your key)
-and Linear (your key).
+### Tasks
+- **Task Inbox** — Inbox, Today, and Completed lists with drag-to-reorder
+- **Priority levels** — High / Medium / Low with colour-coded dots; priority sort overrides manual order
+- **Right-click context menu** — move tasks between lists, set priority, push to external tools, delete
+- **Asana sync** — local tasks push to Asana automatically; completing a task marks it complete upstream
+- **Linear sync** — assigned Linear issues appear in your inbox; completing them closes the issue
+- **Auto-archive** — tasks completed today stay visible with strikethrough; after midnight they move to Completed automatically
+- **4-hour panel memory** — the task panel remembers whether you opened it and stays open for 4 hours, then quietly hides itself
+
+### Focus mode
+- Configurable 15 / 25 / 45 / 60 / 90 min sessions with circular progress ring
+- Soft-block overlay on chosen sites — a nudge, never a lock
+- Ambient sound selection with volume control
+
+### Other
+- **World clock** — live times for any IANA timezone
+- **Analytics dashboard** — tasks completed, focus minutes, streaks, 28-day trend chart
+- **Quick links** — pinned shortcuts in the top bar
+- **Search** — Google / DuckDuckGo / Bing, triggered with `/` or `⌘K`
+- **Font picker** — any Google Font, applied instantly across the page
+
+---
 
 ## Quick start
 
 ```bash
+git clone https://github.com/sagarchauhan005/moment.git
+cd moment
 npm install
-npm run dev
+npm run build
 ```
 
 Then in Chrome:
 
 1. Open `chrome://extensions`
-2. Toggle **Developer mode** (top right)
-3. Click **Load unpacked** → pick the `dist/` folder (after `npm run build`)
-   or the `.vite/build/` dev-server folder if you're running `npm run dev`.
-4. Open a new tab.
+2. Enable **Developer mode** (top right)
+3. Click **Load unpacked** → select the `dist/` folder
+4. Open a new tab
 
-### Production build
+For hot-reload development:
 
 ```bash
-npm run build
-# load dist/ as an unpacked extension
+npm run dev
+# load dist/ as an unpacked extension — it hot-reloads on save
 ```
+
+---
 
 ## Configuration
 
-Click the gear icon in the bottom-left of the new tab (or right-click the
-extension icon → Options):
+Open the settings page via the gear icon (bottom-left of any new tab):
 
-- **Your name** — greeting personalization.
-- **Unsplash access key** — optional. [Create a free dev account](https://unsplash.com/developers),
-  paste the access key, and Moment will pull a fresh daily landscape.
-- **Linear API key** — create one at Linear → Settings → Account → API.
-  Moment will sync your assigned, non-completed issues every 15 minutes.
-- **Focus mode sites** — hostnames that get the soft-block screen during a
-  focus session. Defaults include common distractions (twitter, reddit,
-  youtube, etc.).
-- **World clock cities** — add any label + IANA timezone
-  (e.g. `Asia/Singapore`).
+| Setting | Description |
+|---|---|
+| **Your name** | Greeting personalisation |
+| **UI font** | Any Google Font family — applied instantly |
+| **Unsplash access key** | Optional. Get one at [unsplash.com/developers](https://unsplash.com/developers) |
+| **Linear API key** | Linear → Settings → Account → API |
+| **Asana personal access token** | Asana → My settings → Apps → Personal access tokens |
+| **Focus sites** | Hostnames soft-blocked during focus sessions |
+| **World clock cities** | Label + IANA timezone (e.g. `Asia/Singapore`) |
+| **Search engine** | Google, DuckDuckGo, or Bing |
+
+---
 
 ## Architecture
 
 ```
 src/
-  manifest.config.ts     # MV3 manifest (crxjs)
-  background/            # service worker: alarms, Linear sync, focus end
-  content/               # soft-block overlay injected on focus-list sites
-  newtab/                # the new tab React app
-    App.tsx              # layout
+  background/            # MV3 service worker — alarms, remote sync, focus end
+  content/               # focus-gate content script (soft-block overlay)
+  newtab/                # new tab React app
+    App.tsx
     components/
-      Background.tsx     # wallpaper w/ LQIP blur-up
-      Clock.tsx          # ticking clock
-      MainGoal.tsx       # greeting + goal line
-      TaskInbox.tsx      # floating tasks panel
-      FocusPanel.tsx     # focus mode launcher / timer
-      WorldClockPanel.tsx
-      AnalyticsPanel.tsx # productivity dashboard
-      StatsBar.tsx       # top-right stat strip
-      TopBar.tsx         # top-left nav chips
+      Background.tsx     # wallpaper with blur-up LQIP
+      Clock.tsx
+      FocusMode.tsx      # focus timer overlay + sounds
+      MainGoal.tsx
       Quote.tsx
-  options/               # settings React app
-  lib/                   # storage, linear, unsplash, focus, tasks, time, quotes
-  store/useMoment.ts     # React hook bound to chrome.storage.local
+      StatsBar.tsx
+      TaskInbox.tsx      # floating task panel (drag, priority, sync)
+      TopBar.tsx
+      WorldClockPanel.tsx
+      AnalyticsPanel.tsx
+    styles.css
+  options/               # settings page React app
+  lib/
+    asana.ts             # Asana REST API client
+    focus.ts             # focus session helpers
+    fonts.ts             # Google Fonts loader
+    linear.ts            # Linear GraphQL client
+    quotes.ts
+    sounds.ts            # Tone.js ambient engine
+    storage.ts           # chrome.storage.local wrapper
+    tasks.ts             # task CRUD + list filtering
+    time.ts
+    unsplash.ts
   types.ts
 ```
 
-Data lives in `chrome.storage.local`. The `useMoment` hook subscribes to
-storage changes so every panel updates reactively — edit a task in the inbox
-and the analytics panel reflects it instantly.
+State lives entirely in `chrome.storage.local`. The `useMoment` hook subscribes to `onChanged` events so every panel updates reactively without a separate state management library.
 
-## Notes on design
+---
 
-Inspired directly by the quiet confidence of Momentum: edge-to-edge photo,
-generous negative space, a single clock, one question ("what is your main
-goal?"), and a task inbox that hides until needed. Chrome and glassmorphism
-kept subtle so the landscape always leads.
+## Privacy & Security
+
+- **All data is stored locally** in `chrome.storage.local`
+- The only outbound network calls are:
+  - Unsplash CDN — daily wallpaper fetch (your key, optional)
+  - Asana REST API — only when you add your PAT in Settings
+  - Linear GraphQL API — only when you add your API key in Settings
+  - Weather — current conditions via Open-Meteo (no API key required, no account)
+- No telemetry, no analytics, no tracking
+
+---
+
+## Contributing
+
+Pull requests welcome. Please open an issue first for non-trivial changes.
+
+```bash
+npm run dev    # dev build with HMR
+npm run build  # production build → dist/
+```
+
+---
 
 ## License
 

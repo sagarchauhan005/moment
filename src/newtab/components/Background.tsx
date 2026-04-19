@@ -53,7 +53,10 @@ export function Background({ wallpaper }: { wallpaper: WallpaperCache | null }) 
 export function WallpaperCredit({ wallpaper }: { wallpaper: WallpaperCache | null }) {
   if (!wallpaper) return null;
   return (
-    <div className="text-[11px] text-ink-300 flex items-center gap-1.5">
+    <div
+      className="text-[11.5px] text-white/75 font-medium flex items-center gap-1.5"
+      style={{ textShadow: "0 1px 8px rgba(0,0,0,0.5)" }}
+    >
       <span>{wallpaper.location ?? "Unsplash"}</span>
       {wallpaper.photographer && (
         <>

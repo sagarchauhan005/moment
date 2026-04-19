@@ -50,6 +50,7 @@ export const DEFAULT_PREFS: UserPrefs = {
 export const DEFAULT_LISTS: TaskList[] = [
   { id: "inbox", name: "Task Inbox", source: "local" },
   { id: "today", name: "Today", source: "local" },
+  { id: "flow", name: "Flow", source: "local" },
 ];
 
 type StoreShape = {

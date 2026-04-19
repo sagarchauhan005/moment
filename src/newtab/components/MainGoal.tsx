@@ -36,8 +36,11 @@ export function MainGoal({ prefs }: { prefs: UserPrefs }) {
   return (
     <div className="flex flex-col items-center text-center mt-10 animate-fade-up">
       <h1
-        className="text-4xl sm:text-5xl font-extralight tracking-tight text-white/95"
-        style={{ textShadow: "0 2px 30px rgba(0,0,0,0.35)" }}
+        className="text-4xl sm:text-5xl font-medium tracking-tight text-white"
+        style={{
+          textShadow: "0 2px 30px rgba(0,0,0,0.45)",
+          letterSpacing: "-0.03em",
+        }}
       >
         {greeting}
       </h1>
@@ -45,19 +48,26 @@ export function MainGoal({ prefs }: { prefs: UserPrefs }) {
         {hasGoal && !editing ? (
           <button
             onClick={clear}
-            className="group relative mx-auto inline-flex items-center gap-3 text-white/90"
+            className="group relative mx-auto inline-flex items-center gap-3.5 text-white"
             title="Change goal"
+            style={{ textShadow: "0 2px 20px rgba(0,0,0,0.45)" }}
           >
-            <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-white/40 group-hover:border-white/70 transition-colors">
-              <Check className="h-3 w-3 opacity-0 group-hover:opacity-70" />
+            <span className="inline-flex h-6 w-6 items-center justify-center rounded-full border-[1.5px] border-white/60 group-hover:border-white transition-colors">
+              <Check className="h-3.5 w-3.5 opacity-0 group-hover:opacity-90" />
             </span>
-            <span className="text-xl font-light tracking-tight">
+            <span
+              className="text-2xl font-semibold tracking-tight"
+              style={{ letterSpacing: "-0.02em" }}
+            >
               {prefs.mainGoal}
             </span>
           </button>
         ) : (
           <>
-            <div className="text-xl font-light text-white/75">
+            <div
+              className="text-xl font-normal text-white/90"
+              style={{ textShadow: "0 2px 20px rgba(0,0,0,0.4)" }}
+            >
               What is your main goal for today?
             </div>
             <div className="mt-5 mx-auto w-full max-w-[520px] relative">
