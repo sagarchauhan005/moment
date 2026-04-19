@@ -33,8 +33,10 @@ export async function toggleTask(id: string): Promise<Task | null> {
   await store.appendDailyMetric(todayISO(), {
     tasksCompleted: next.completed ? 1 : -1,
   });
-  // If checking off a remote task, push completion upstream.
-  if (next.completed && next.source !== "local" && next.externalId) {
+  // Push completion to the external tool (Asana / Linear).
+  // Covers both tasks originally from an integration AND local tasks
+  // that were later pushed via sync (source gets updated to "asana"/"linear").
+  if (next.completed && next.externalId && next.source !== "local") {
     void chrome.runtime
       .sendMessage({
         type: "remote-complete",

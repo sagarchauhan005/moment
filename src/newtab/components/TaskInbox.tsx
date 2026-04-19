@@ -15,7 +15,7 @@ import {
   addTask, deleteTask, patchTask, reorderTasks, tasksForList, toggleTask,
 } from "@/lib/tasks";
 import { store } from "@/lib/storage";
-import type { Task, TaskSource, UserPrefs } from "@/types";
+import type { Task, UserPrefs } from "@/types";
 
 const PRIORITY_SORT: Record<string, number> = { high: 0, medium: 1, low: 2 };
 const PRIORITY_COLOR: Record<string, string> = {
@@ -35,11 +35,6 @@ const SYSTEM_LISTS = [
   { id: "completed", name: "Completed", Icon: CheckCheck },
 ];
 
-const SOURCE_COLORS: Record<TaskSource, string> = {
-  local:  "text-white/50",
-  linear: "text-violet-300/90",
-  asana:  "text-rose-300/90",
-};
 
 interface CtxMenu { taskId: string; x: number; y: number }
 
@@ -408,7 +403,6 @@ function TaskRow({
   task: Task;
   onContextMenu?: (e: React.MouseEvent) => void;
 }) {
-  const synced = task.source !== "local";
   return (
     <div
       className="task-row group"
@@ -426,14 +420,6 @@ function TaskRow({
         </svg>
       </button>
       <span className="title flex-1 min-w-0 truncate">{task.title}</span>
-      {synced && (
-        <span
-          className={`text-[9.5px] uppercase tracking-wider shrink-0 ${SOURCE_COLORS[task.source]}`}
-          title={`Synced to ${task.source}`}
-        >
-          {task.source}
-        </span>
-      )}
       {task.priority && (
         <span
           className={`w-1.5 h-1.5 rounded-full shrink-0 ${PRIORITY_COLOR[task.priority]}`}

@@ -1,4 +1,5 @@
 import { store } from "./storage";
+import { todayISO } from "./time";
 import type { FocusSession } from "@/types";
 
 export function normalizeSite(raw: string): string {
@@ -47,4 +48,11 @@ export async function endFocus(cancelled = false): Promise<void> {
     cancelled,
   };
   await store.setFocus({ active: false, session });
+
+  if (!cancelled) {
+    const elapsed = Math.round((now - state.session.startedAt) / 60_000);
+    if (elapsed > 0) {
+      await store.appendDailyMetric(todayISO(), { focusMinutes: elapsed });
+    }
+  }
 }
