@@ -164,8 +164,8 @@ export function FocusMode({
       {/* Dimmed blurred bg */}
       <div className="absolute inset-0 bg-neutral-950/95 backdrop-blur-sm" />
 
-      {/* ── Top bar ── */}
-      <div className="absolute top-0 left-0 right-0 flex items-start justify-between px-7 pt-6 z-10">
+      {/* ── Top bar (must stack above full-screen center layer or inset-0 steals hits) ── */}
+      <div className="absolute top-0 left-0 right-0 flex items-start justify-between px-7 pt-6 z-30">
         {/* Left: sound + volume (volume always visible during a session) */}
         <div className="flex flex-wrap items-center gap-3 min-w-0">
           <button
@@ -200,7 +200,10 @@ export function FocusMode({
                 step={0.02}
                 value={volume}
                 onChange={(e) => handleVolumeChange(Number(e.target.value))}
-                className="flex-1 min-w-0 h-1 accent-white cursor-pointer"
+                onInput={(e) =>
+                  handleVolumeChange(Number((e.target as HTMLInputElement).value))
+                }
+                className="flex-1 min-w-0 h-2 sm:h-1.5 accent-white cursor-pointer touch-pan-x"
                 aria-label="Ambient volume"
               />
               <Volume2
@@ -233,10 +236,10 @@ export function FocusMode({
         </div>
       </div>
 
-      {/* ── Center ── */}
-      <div className="absolute inset-0 flex items-center justify-center z-10">
+      {/* ── Center: pointer-events-none so top bar stays clickable; inner restores hits ── */}
+      <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
         {focus.active && focus.session ? (
-          <div className="flex flex-col items-center">
+          <div className="flex flex-col items-center pointer-events-auto">
             {/* Focus / Break tabs */}
             <div className="flex gap-8 mb-10">
               {(["focus", "break"] as const).map((m) => (
@@ -334,7 +337,7 @@ export function FocusMode({
           </div>
         ) : (
           /* Pre-session picker */
-          <div className="flex flex-col items-center gap-8">
+          <div className="flex flex-col items-center gap-8 pointer-events-auto">
             <div className="text-[22px] font-light text-white/90 tracking-tight">
               Start a focus session
             </div>
@@ -376,7 +379,7 @@ export function FocusMode({
       {/* ── Affirmation ── */}
       {focus.active && (
         <div
-          className="absolute bottom-8 left-0 right-0 flex justify-center z-10"
+          className="absolute bottom-8 left-0 right-0 z-20 flex justify-center pointer-events-none"
           style={{ textShadow: "0 1px 10px rgba(0,0,0,0.5)" }}
         >
           <p className="text-white/45 text-[13px] italic font-light">
@@ -413,7 +416,7 @@ function SoundsPanel({
   onClose: () => void;
 }) {
   return (
-    <div className="absolute bottom-20 left-7 glass p-4 w-[320px] z-20 animate-scale-in">
+    <div className="absolute bottom-20 left-7 z-40 w-[320px] animate-scale-in glass p-4">
       <div className="flex items-center justify-between mb-4">
         <span className="text-[13.5px] font-medium">Ambient sounds</span>
         <button onClick={onClose} className="icon-btn w-6 h-6">
@@ -436,22 +439,44 @@ function SoundsPanel({
         <Volume2 className="w-[14px] h-[14px] text-white/40 shrink-0" strokeWidth={1.8} />
       </div>
 
-      {/* Grid */}
+      {/* Grid — only bundled sounds are selectable for now */}
       <div className="grid grid-cols-3 gap-2">
-        {SOUNDS.map((s) => (
-          <button
-            key={s.id}
-            onClick={() => onToggle(s.id)}
-            className={`p-3 rounded-xl text-center transition-all ${
-              active === s.id
-                ? "bg-white/18 border border-white/30 scale-[1.03]"
-                : "bg-white/[0.04] border border-white/8 hover:bg-white/10"
-            }`}
-          >
-            <div className="text-[22px] mb-1">{s.emoji}</div>
-            <div className="text-[11px] font-medium text-white/75">{s.name}</div>
-          </button>
-        ))}
+        {SOUNDS.map((s) => {
+          const available = s.id === DEFAULT_AMBIENT_SOUND_ID;
+          return (
+            <button
+              key={s.id}
+              type="button"
+              disabled={!available}
+              title={available ? undefined : "Coming soon"}
+              onClick={() => available && onToggle(s.id)}
+              className={`relative overflow-hidden p-3 rounded-xl text-center transition-all ${
+                !available
+                  ? "cursor-not-allowed border border-white/[0.06]"
+                  : active === s.id
+                    ? "bg-white/18 border border-white/30 scale-[1.03]"
+                    : "bg-white/[0.04] border border-white/8 hover:bg-white/10"
+              }`}
+            >
+              <div
+                className={`text-[22px] mb-1 ${!available ? "opacity-45" : ""}`}
+              >
+                {s.emoji}
+              </div>
+              <div
+                className={`text-[11px] font-medium ${!available ? "text-white/40" : "text-white/75"}`}
+              >
+                {s.name}
+              </div>
+              {!available && (
+                <span
+                  className="pointer-events-none absolute inset-0 rounded-[inherit] bg-white/[0.14]"
+                  aria-hidden
+                />
+              )}
+            </button>
+          );
+        })}
       </div>
     </div>
   );

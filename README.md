@@ -20,6 +20,8 @@
   <img src="screenshots/9.png" alt="Moment new tab — overview 9" width="32%" />
   <br />
   <img src="screenshots/10.png" alt="Moment new tab — overview 10" width="32%" />
+  <img src="screenshots/11.png" alt="Moment new tab — focus ambient" width="32%" />
+  <img src="screenshots/12.png" alt="Moment new tab — focus sounds" width="32%" />
 </p>
 
 ---
@@ -36,7 +38,7 @@ The original **Momentum** extension keeps integrations with project-management t
 
 - **Wallpapers** — Daily Unsplash landscapes (with a curated offline fallback). **Click the location / “Unsplash” label** in the footer to load a new random wallpaper.
 - **Asana & Linear** — Optional sync: configure tokens in settings; Linear issues and Asana tasks can flow through your lists.
-- **Focus mode** — Timed sessions with a soft site nudge overlay. **Rain sound** included to start; more ambient options in settings.
+- **Focus mode** — Timed sessions with a soft site nudge for configured sites. **Rainfall** ambient starts with the session (header volume + picker); the sound grid lists future options as *coming soon* until more files are bundled.
 - **Search** — Google / DuckDuckGo / Bing (`/` or `⌘K` / `Ctrl+K`).
 - **Weather** — Current conditions (Open-Meteo, no API key).
 - **Task stats** — Analytics panel: completed tasks, focus minutes, trends.
@@ -89,7 +91,7 @@ Open settings via the **gear** icon (bottom-left on the new tab):
 
 - **Calendar integration**
 - **More project-management tool integrations**
-- **More ambient audio** beyond the current set
+- **More ambient audio** (bundle additional MP3s in `sounds` / `src/assets/sounds` and wire in `sounds.ts`)
 
 ---
 
