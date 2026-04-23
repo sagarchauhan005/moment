@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  CheckSquare, ChevronDown, Inbox, MoreHorizontal, Maximize2,
+  CheckSquare, ChevronDown, Inbox, Maximize2,
   Plus, Sun, CheckCheck, RefreshCw, Trash2, X,
 } from "lucide-react";
 import {
@@ -12,7 +12,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
-  addTask, deleteTask, patchTask, reorderTasks, tasksForList, toggleTask,
+  addTask, deleteTask, patchTask, renameTask, reorderTasks, tasksForList, toggleTask,
 } from "@/lib/tasks";
 import { store } from "@/lib/storage";
 import type { Task, UserPrefs } from "@/types";
@@ -35,6 +35,25 @@ const SYSTEM_LISTS = [
   { id: "completed", name: "Completed", Icon: CheckCheck },
 ];
 
+// ── Integration brand icons ──────────────────────────────────────────────────
+
+function AsanaIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 32 32" className={className} fill="currentColor" aria-hidden>
+      <circle cx="16" cy="7.5" r="5.5" />
+      <circle cx="6.5" cy="22.5" r="5.5" />
+      <circle cx="25.5" cy="22.5" r="5.5" />
+    </svg>
+  );
+}
+
+function LinearIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 100 100" className={className} fill="currentColor" aria-hidden>
+      <path d="M1.22 61.11 38.89 98.78C18.09 95.75 1.25 78.91 1.22 61.11zM0 45.45 54.55 100c2.3-.42 4.56-.98 6.73-1.72L1.72 38.72A50.43 50.43 0 0 0 0 45.45zm10.21-21.9 61.48 61.48c1.93-1.04 3.79-2.2 5.55-3.5L13.7 18.16a50.2 50.2 0 0 0-3.49 5.39zm14.5-14.5 61.48 61.48c1.3-1.76 2.47-3.62 3.5-5.55L18.16 13.7a50.2 50.2 0 0 0-3.45 5.35zm19.84-11.98c-2.3.42-4.56.98-6.73 1.72l59.96 59.96a50.26 50.26 0 0 0 1.72-6.73L44.55 7.07zM61.11 1.22C40.3 4.25 23.47 21.1 20.44 41.9L57.89 4.44c-2.17-.74-4.43-1.3-6.78-3.22z" />
+    </svg>
+  );
+}
 
 interface CtxMenu { taskId: string; x: number; y: number }
 
@@ -47,18 +66,17 @@ export function TaskInbox({
   prefs: UserPrefs;
   onExpand: () => void;
 }) {
-  const INBOX_TTL = 4 * 60 * 60 * 1000; // 4 hours in ms
-  const isWithinTTL = (ts?: number | null) =>
-    !!ts && Date.now() - ts < INBOX_TTL;
+  const INBOX_TTL = 4 * 60 * 60 * 1000;
+  const isWithinTTL = (ts?: number | null) => !!ts && Date.now() - ts < INBOX_TTL;
 
   const initialOpenedAt = isWithinTTL(prefs.taskInboxOpenedAt) ? (prefs.taskInboxOpenedAt ?? null) : null;
   const [openedAt, setOpenedAt]   = useState<number | null>(initialOpenedAt);
   const [open, setOpen]           = useState(() => !!initialOpenedAt);
   const [picker, setPicker]       = useState(false);
-  const [hideChecked, setHideChecked] = useState(false);
   const [adding, setAdding]       = useState(false);
   const [draft, setDraft]         = useState("");
   const [ctxMenu, setCtxMenu]     = useState<CtxMenu | null>(null);
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [syncing, setSyncing]     = useState(false);
 
   // Auto-close after remaining TTL
@@ -99,8 +117,8 @@ export function TaskInbox({
       }
       return b.createdAt - a.createdAt;
     });
-    return hideChecked ? filtered.filter((t) => !t.completed) : filtered;
-  }, [tasks, activeListId, hideChecked]);
+    return filtered;
+  }, [tasks, activeListId]);
 
   const counts = {
     inbox:     tasks.filter((t) => t.listId === "inbox" && !t.completed).length,
@@ -140,12 +158,32 @@ export function TaskInbox({
     finally { setSyncing(false); }
   };
 
+  // Remote-aware delete
+  const handleDeleteTask = useCallback(async (task: Task) => {
+    if (task.externalId && task.source !== "local") {
+      void chrome.runtime
+        .sendMessage({ type: "remote-delete", source: task.source, externalId: task.externalId })
+        .catch(() => null);
+    }
+    await deleteTask(task.id);
+  }, []);
+
+  // Remote-aware rename
+  const handleRenameTask = useCallback(async (task: Task, newTitle: string) => {
+    await renameTask(task.id, newTitle);
+    if (task.externalId && task.source !== "local") {
+      void chrome.runtime
+        .sendMessage({ type: "remote-rename", source: task.source, externalId: task.externalId, title: newTitle })
+        .catch(() => null);
+    }
+  }, []);
+
   const openCtx = (taskId: string, e: React.MouseEvent) => {
     e.preventDefault();
     setCtxMenu({
       taskId,
       x: Math.min(e.clientX, window.innerWidth  - 200),
-      y: Math.min(e.clientY, window.innerHeight - 240),
+      y: Math.min(e.clientY, window.innerHeight - 260),
     });
   };
 
@@ -156,6 +194,15 @@ export function TaskInbox({
   const isDraggable = activeListId !== "completed";
   const incompleteTasks = visibleTasks.filter((t) => !t.completed);
   const completedTasks  = visibleTasks.filter((t) =>  t.completed);
+
+  // Integration board link
+  const integrationHref = prefs.asanaToken
+    ? (prefs.asanaFlowProjectGid
+        ? `https://app.asana.com/0/${prefs.asanaFlowProjectGid}/list`
+        : "https://app.asana.com/")
+    : prefs.linearApiKey
+    ? "https://linear.app/"
+    : null;
 
   if (!open) {
     return (
@@ -190,13 +237,19 @@ export function TaskInbox({
             />
           </button>
           <div className="flex items-center gap-0.5">
-            <button
-              className="icon-btn w-7 h-7"
-              title={hideChecked ? "Show completed" : "Hide completed"}
-              onClick={() => setHideChecked((v) => !v)}
-            >
-              <MoreHorizontal className="w-[16px] h-[16px]" strokeWidth={1.5} />
-            </button>
+            {integrationHref && (
+              <a
+                href={integrationHref}
+                target="_blank"
+                rel="noreferrer"
+                className="icon-btn w-7 h-7"
+                title={`Open in ${prefs.asanaToken ? "Asana" : "Linear"}`}
+              >
+                {prefs.asanaToken
+                  ? <AsanaIcon className="w-[15px] h-[15px] text-[#F06A6A]" />
+                  : <LinearIcon className="w-[14px] h-[14px] text-[#5E6AD2]" />}
+              </a>
+            )}
             <button className="icon-btn w-7 h-7" title="Expand" onClick={onExpand}>
               <Maximize2 className="w-[15px] h-[15px]" strokeWidth={1.5} />
             </button>
@@ -236,18 +289,42 @@ export function TaskInbox({
                     strategy={verticalListSortingStrategy}
                   >
                     {incompleteTasks.map((t) => (
-                      <SortableTaskRow key={t.id} task={t} onContextMenu={(e) => openCtx(t.id, e)} />
+                      <SortableTaskRow
+                        key={t.id}
+                        task={t}
+                        isEditing={editingTaskId === t.id}
+                        onContextMenu={(e) => openCtx(t.id, e)}
+                        onDelete={handleDeleteTask}
+                        onRename={handleRenameTask}
+                        onEditingDone={() => setEditingTaskId(null)}
+                      />
                     ))}
                   </SortableContext>
                 </DndContext>
               ) : (
                 incompleteTasks.map((t) => (
-                  <TaskRow key={t.id} task={t} onContextMenu={(e) => openCtx(t.id, e)} />
+                  <TaskRow
+                    key={t.id}
+                    task={t}
+                    isEditing={editingTaskId === t.id}
+                    onContextMenu={(e) => openCtx(t.id, e)}
+                    onDelete={handleDeleteTask}
+                    onRename={handleRenameTask}
+                    onEditingDone={() => setEditingTaskId(null)}
+                  />
                 ))
               )}
 
               {completedTasks.map((t) => (
-                <TaskRow key={t.id} task={t} onContextMenu={(e) => openCtx(t.id, e)} />
+                <TaskRow
+                  key={t.id}
+                  task={t}
+                  isEditing={false}
+                  onContextMenu={(e) => openCtx(t.id, e)}
+                  onDelete={handleDeleteTask}
+                  onRename={handleRenameTask}
+                  onEditingDone={() => {}}
+                />
               ))}
             </div>
 
@@ -298,6 +375,14 @@ export function TaskInbox({
             className="fixed z-50 glass w-48 py-1 rounded-xl shadow-xl text-[13px]"
             style={{ left: ctxMenu.x, top: ctxMenu.y }}
           >
+            <CtxItem
+              onClick={() => {
+                setEditingTaskId(ctxTask.id);
+                closeCtx();
+              }}
+            >
+              Rename
+            </CtxItem>
             {ctxTask.listId !== "inbox" && (
               <CtxItem onClick={async () => { await patchTask(ctxTask.id, { listId: "inbox" }); closeCtx(); }}>
                 Move to Inbox
@@ -336,7 +421,7 @@ export function TaskInbox({
             <div className="h-px bg-white/10 my-1 mx-2" />
             <CtxItem
               className="text-red-400/80 hover:text-red-400"
-              onClick={async () => { await deleteTask(ctxTask.id); closeCtx(); }}
+              onClick={async () => { await handleDeleteTask(ctxTask); closeCtx(); }}
             >
               Delete
             </CtxItem>
@@ -373,10 +458,18 @@ function CtxItem({
 
 function SortableTaskRow({
   task,
+  isEditing,
   onContextMenu,
+  onDelete,
+  onRename,
+  onEditingDone,
 }: {
   task: Task;
+  isEditing: boolean;
   onContextMenu: (e: React.MouseEvent) => void;
+  onDelete: (task: Task) => void;
+  onRename: (task: Task, title: string) => void;
+  onEditingDone: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: task.id });
@@ -391,18 +484,57 @@ function SortableTaskRow({
       {...listeners}
       className={isDragging ? "opacity-50 cursor-grabbing" : "cursor-grab"}
     >
-      <TaskRow task={task} onContextMenu={onContextMenu} />
+      <TaskRow
+        task={task}
+        isEditing={isEditing}
+        onContextMenu={onContextMenu}
+        onDelete={onDelete}
+        onRename={onRename}
+        onEditingDone={onEditingDone}
+      />
     </div>
   );
 }
 
 function TaskRow({
   task,
+  isEditing: startEditing,
   onContextMenu,
+  onDelete,
+  onRename,
+  onEditingDone,
 }: {
   task: Task;
+  isEditing: boolean;
   onContextMenu?: (e: React.MouseEvent) => void;
+  onDelete: (task: Task) => void;
+  onRename: (task: Task, title: string) => void;
+  onEditingDone: () => void;
 }) {
+  const [editing, setEditing] = useState(false);
+  const [editVal, setEditVal] = useState(task.title);
+
+  // Parent can trigger editing via the isEditing prop (e.g. from context menu)
+  useEffect(() => {
+    if (startEditing && !task.completed) {
+      setEditVal(task.title);
+      setEditing(true);
+      onEditingDone(); // reset parent flag so it doesn't re-trigger
+    }
+  }, [startEditing]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Keep editVal in sync if task title changes externally
+  useEffect(() => {
+    if (!editing) setEditVal(task.title);
+  }, [task.title, editing]);
+
+  const commitEdit = async () => {
+    setEditing(false);
+    const trimmed = editVal.trim();
+    if (!trimmed || trimmed === task.title) { setEditVal(task.title); return; }
+    await onRename(task, trimmed);
+  };
+
   return (
     <div
       className="task-row group"
@@ -419,20 +551,47 @@ function TaskRow({
           <polyline points="5 13 10 18 20 7" />
         </svg>
       </button>
-      <span className="title flex-1 min-w-0 truncate">{task.title}</span>
-      {task.priority && (
+
+      {editing ? (
+        <input
+          autoFocus
+          className="bg-transparent outline-none border-none flex-1 text-[13px] text-white"
+          value={editVal}
+          onChange={(e) => setEditVal(e.target.value)}
+          onKeyDown={async (e) => {
+            if (e.key === "Enter") { e.preventDefault(); await commitEdit(); }
+            else if (e.key === "Escape") { setEditing(false); setEditVal(task.title); }
+          }}
+          onBlur={commitEdit}
+          onClick={(e) => e.stopPropagation()}
+        />
+      ) : (
+        <span
+          className="title flex-1 min-w-0 truncate"
+          onDoubleClick={(e) => {
+            e.stopPropagation();
+            if (!task.completed) { setEditVal(task.title); setEditing(true); }
+          }}
+        >
+          {task.title}
+        </span>
+      )}
+
+      {task.priority && !editing && (
         <span
           className={`w-1.5 h-1.5 rounded-full shrink-0 ${PRIORITY_COLOR[task.priority]}`}
           title={PRIORITY_LABEL[task.priority]}
         />
       )}
-      <button
-        className="opacity-0 group-hover:opacity-100 transition-opacity text-white/40 hover:text-white/80 shrink-0"
-        onClick={(e) => { e.stopPropagation(); void deleteTask(task.id); }}
-        title="Delete"
-      >
-        <Trash2 className="w-[12px] h-[12px]" strokeWidth={1.5} />
-      </button>
+      {!editing && (
+        <button
+          className="opacity-0 group-hover:opacity-100 transition-opacity text-white/40 hover:text-white/80 shrink-0"
+          onClick={(e) => { e.stopPropagation(); void onDelete(task); }}
+          title="Delete"
+        >
+          <Trash2 className="w-[12px] h-[12px]" strokeWidth={1.5} />
+        </button>
+      )}
     </div>
   );
 }

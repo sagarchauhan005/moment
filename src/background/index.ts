@@ -4,16 +4,25 @@ import { ensureDailyWallpaper } from "@/lib/unsplash";
 import {
   completeLinearIssue,
   createLinearFlowIssue,
+  deleteLinearIssue,
   ensureFlowProject as ensureLinearFlowProject,
+  renameLinearIssue,
 } from "@/lib/linear";
 import {
   completeAsanaTask,
   createAsanaFlowTask,
+  deleteAsanaTask,
   ensureFlowProject as ensureAsanaFlowProject,
+  renameAsanaTask,
 } from "@/lib/asana";
 import type { TaskSource } from "@/types";
 
 // --- Lifecycle --------------------------------------------------------
+
+// Clicking the toolbar icon opens the options/settings page.
+chrome.action.onClicked.addListener(() => {
+  chrome.runtime.openOptionsPage();
+});
 
 chrome.runtime.onInstalled.addListener(async () => {
   await ensureDailyWallpaper().catch(() => null);
@@ -87,6 +96,46 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           await completeLinearIssue(prefs.linearApiKey, externalId);
         } else if (source === "asana" && prefs.asanaToken) {
           await completeAsanaTask(prefs.asanaToken, externalId);
+        }
+        sendResponse({ ok: true });
+      } catch (e) {
+        sendResponse({ ok: false, error: (e as Error).message });
+      }
+    })();
+    return true;
+  }
+
+  if (type === "remote-delete") {
+    (async () => {
+      const { source, externalId } = msg as { source: TaskSource; externalId: string };
+      try {
+        const prefs = await store.getPrefs();
+        if (source === "linear" && prefs.linearApiKey) {
+          await deleteLinearIssue(prefs.linearApiKey, externalId);
+        } else if (source === "asana" && prefs.asanaToken) {
+          await deleteAsanaTask(prefs.asanaToken, externalId);
+        }
+        sendResponse({ ok: true });
+      } catch (e) {
+        sendResponse({ ok: false, error: (e as Error).message });
+      }
+    })();
+    return true;
+  }
+
+  if (type === "remote-rename") {
+    (async () => {
+      const { source, externalId, title } = msg as {
+        source: TaskSource;
+        externalId: string;
+        title: string;
+      };
+      try {
+        const prefs = await store.getPrefs();
+        if (source === "linear" && prefs.linearApiKey) {
+          await renameLinearIssue(prefs.linearApiKey, externalId, title);
+        } else if (source === "asana" && prefs.asanaToken) {
+          await renameAsanaTask(prefs.asanaToken, externalId, title);
         }
         sendResponse({ ok: true });
       } catch (e) {

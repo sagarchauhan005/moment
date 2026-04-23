@@ -29,7 +29,19 @@ export default defineManifest({
     },
   ],
   permissions: ["storage", "alarms", "tabs"],
-  host_permissions: ["<all_urls>"],
+  host_permissions: [
+    // Asana REST API
+    "https://app.asana.com/*",
+    // Linear GraphQL API
+    "https://api.linear.app/*",
+    // Weather (no key required)
+    "https://api.open-meteo.com/*",
+    // Reverse geocoding for weather city name
+    "https://nominatim.openstreetmap.org/*",
+    // Unsplash wallpapers
+    "https://api.unsplash.com/*",
+    "https://images.unsplash.com/*",
+  ],
   icons: {
     "16": "src/assets/icon-16.png",
     "48": "src/assets/icon-48.png",

@@ -36,6 +36,14 @@ async function asanaPut(token: string, path: string, body: unknown) {
   if (!res.ok) await asanaThrow(res, path);
 }
 
+async function asanaDelete(token: string, path: string) {
+  const res = await fetch(`${BASE}${path}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) await asanaThrow(res, path);
+}
+
 export async function testAsanaToken(token: string): Promise<{ name: string; email: string }> {
   const me = await asanaGet(token, "/users/me", { opt_fields: "name,email" });
   return { name: me.data?.name ?? "Unknown", email: me.data?.email ?? "" };
@@ -86,4 +94,12 @@ export async function createAsanaFlowTask(
 
 export async function completeAsanaTask(token: string, taskGid: string): Promise<void> {
   await asanaPut(token, `/tasks/${taskGid}`, { completed: true });
+}
+
+export async function deleteAsanaTask(token: string, taskGid: string): Promise<void> {
+  await asanaDelete(token, `/tasks/${taskGid}`);
+}
+
+export async function renameAsanaTask(token: string, taskGid: string, name: string): Promise<void> {
+  await asanaPut(token, `/tasks/${taskGid}`, { name });
 }

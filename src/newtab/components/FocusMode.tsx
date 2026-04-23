@@ -95,6 +95,16 @@ export function FocusMode({
     return () => clearInterval(iv);
   }, []);
 
+  // If FocusMode opens during an already-active session (e.g. user re-opens it),
+  // resume the default ambient sound automatically.
+  useEffect(() => {
+    if (focus.active && focus.session && !engine.active) {
+      void engine.play(DEFAULT_AMBIENT_SOUND_ID, volume)
+        .then(() => setActiveSound(DEFAULT_AMBIENT_SOUND_ID))
+        .catch(() => setActiveSound(null));
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Stop sounds on unmount
   useEffect(() => () => engine.stop(), []);
 
@@ -113,10 +123,9 @@ export function FocusMode({
   };
 
   const handleStart = async () => {
-    // Start audio in the same synchronous turn as the click so autoplay policy allows it.
-    // Do not await startFocus first — that yields and can consume the user gesture.
-    const started = engine.play(DEFAULT_AMBIENT_SOUND_ID, volume);
-    void started
+    // engine.play() must be called synchronously within the click gesture —
+    // awaiting startFocus first would consume the user-gesture token and block autoplay.
+    void engine.play(DEFAULT_AMBIENT_SOUND_ID, volume)
       .then(() => setActiveSound(DEFAULT_AMBIENT_SOUND_ID))
       .catch(() => setActiveSound(null));
     await startFocus(duration);

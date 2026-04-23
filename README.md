@@ -1,53 +1,58 @@
 # Moment — A Beautiful New Tab
 
-**Moment** is an open-source alternative to the [Momentum](https://chromewebstore.google.com/detail/momentum/laookkfknpbbblfpciffpaejjkokdgca?hl=en) new-tab experience: a calm dashboard with wallpapers, focus, tasks, and integrations—without locking project-management features behind a paid tier.
+<p align="center">
+  <a href="https://chromewebstore.google.com/detail/moment/TODO_REPLACE_WITH_CWS_ID">
+    <img src="https://img.shields.io/badge/Chrome%20Web%20Store-Install-4285F4?logo=googlechrome&logoColor=white" alt="Install from Chrome Web Store" />
+  </a>
+  <a href="https://github.com/sagarchauhan005/moment/releases">
+    <img src="https://img.shields.io/github/v/release/sagarchauhan005/moment?color=6366f1" alt="Latest release" />
+  </a>
+  <a href="LICENSE">
+    <img src="https://img.shields.io/badge/license-MIT-brightgreen" alt="MIT license" />
+  </a>
+</p>
+
+**Moment** is an open-source alternative to [Momentum](https://chromewebstore.google.com/detail/momentum/laookkfknpbbblfpciffpaejjkokdgca): a calm new-tab dashboard with wallpapers, tasks, focus timer, and integrations — without locking project-management features behind a paywall.
 
 ---
 
 ## Screenshots
 
 <p align="center">
-  <img src="screenshots/1.png" alt="Moment new tab — overview 1" width="32%" />
-  <img src="screenshots/2.png" alt="Moment new tab — overview 2" width="32%" />
-  <img src="screenshots/3.png" alt="Moment new tab — overview 3" width="32%" />
+  <img src="screenshots/1.png" alt="Moment new tab" width="32%" />
+  <img src="screenshots/2.png" alt="Focus mode" width="32%" />
+  <img src="screenshots/3.png" alt="Task inbox" width="32%" />
   <br />
-  <img src="screenshots/4.png" alt="Moment new tab — overview 4" width="32%" />
-  <img src="screenshots/5.png" alt="Moment new tab — overview 5" width="32%" />
-  <img src="screenshots/6.png" alt="Moment new tab — overview 6" width="32%" />
-  <br />
-  <img src="screenshots/7.png" alt="Moment new tab — overview 7" width="32%" />
-  <img src="screenshots/8.png" alt="Moment new tab — overview 8" width="32%" />
-  <img src="screenshots/9.png" alt="Moment new tab — overview 9" width="32%" />
-  <br />
-  <img src="screenshots/10.png" alt="Moment new tab — overview 10" width="32%" />
-  <img src="screenshots/11.png" alt="Moment new tab — focus ambient" width="32%" />
-  <img src="screenshots/12.png" alt="Moment new tab — focus sounds" width="32%" />
+  <img src="screenshots/4.png" alt="Ambient sounds" width="32%" />
+  <img src="screenshots/5.png" alt="Stats panel" width="32%" />
+  <img src="screenshots/6.png" alt="Settings" width="32%" />
 </p>
 
 ---
 
-## Why this exists
+## Features
 
-The original **Momentum** extension keeps integrations with project-management tools behind **Momentum Plus**. This project was developed so you can get a similar daily dashboard—**with Asana and Linear wired in by default** (bring your own API keys)—without that paywall on core productivity workflows.
-
-**Inspired by:** [Momentum — Chrome Web Store](https://chromewebstore.google.com/detail/momentum/laookkfknpbbblfpciffpaejjkokdgca?hl=en)
-
----
-
-## What you get
-
-- **Wallpapers** — Daily Unsplash landscapes (with a curated offline fallback). **Click the location / “Unsplash” label** in the footer to load a new random wallpaper.
-- **Asana & Linear** — Optional sync: configure tokens in settings; Linear issues and Asana tasks can flow through your lists.
-- **Focus mode** — Timed sessions with a soft site nudge for configured sites. **Rainfall** ambient starts with the session (header volume + picker); the sound grid lists future options as *coming soon* until more files are bundled.
-- **Search** — Google / DuckDuckGo / Bing (`/` or `⌘K` / `Ctrl+K`).
-- **Weather** — Current conditions (Open-Meteo, no API key).
-- **Task stats** — Analytics panel: completed tasks, focus minutes, trends.
-- **World clock** — Multiple IANA timezones from the top bar.
-- **Tasks** — Simple **Inbox**, **Today**, and **Completed** tabs; **priority** (high / medium / low), drag-to-reorder, context menu for moves and sync actions.
+| Feature | Details |
+|---------|---------|
+| **Daily wallpaper** | Unsplash landscapes — click the footer label to refresh |
+| **Task inbox** | Inbox / Today / Completed tabs · Priority · Drag-to-reorder · Inline editing · Right-click context menu |
+| **Focus mode** | Countdown timer · Rainfall ambient sound (auto-plays on start) · Switchable sound grid · Soft site-block overlay for distraction sites |
+| **Asana & Linear** | Optional sync via your own API tokens · Tasks created locally can be pushed · Completions, renames, and deletes propagate back |
+| **Weather** | Current temperature + city via Open-Meteo (no API key needed) |
+| **World clock** | Multiple IANA timezones in the top bar |
+| **Search** | Google · DuckDuckGo · Bing (`/` or `⌘K` / `Ctrl+K`) |
+| **Stats** | Daily focus minutes · Tasks completed · Trend charts |
 
 ---
 
-## Local setup
+## Install
+
+### From the Chrome Web Store _(recommended)_
+
+> **Coming soon** — submission in progress.  
+> Star / watch this repo to be notified when it goes live.
+
+### Load unpacked (Developer mode)
 
 ```bash
 git clone https://github.com/sagarchauhan005/moment.git
@@ -56,85 +61,93 @@ npm install
 npm run build
 ```
 
-Load in Chrome:
-
 1. Open `chrome://extensions`
-2. Turn on **Developer mode** (top right)
-3. **Load unpacked** → choose the `dist/` folder
+2. Enable **Developer mode** (top-right toggle)
+3. Click **Load unpacked** → select the `dist/` folder
 4. Open a new tab
 
-Hot-reload while developing:
+---
 
-```bash
-npm run dev
-# Load dist/ as the unpacked extension; it rebuilds on save
-```
+## Configuration
 
-### Configuration
+Open the settings panel via the **⚙ gear icon** (bottom-left of the new tab):
 
-Open settings via the **gear** icon (bottom-left on the new tab):
-
-| Setting | Description |
-|--------|-------------|
-| **Your name** | Greeting |
-| **UI font** | Any Google Font |
-| **Unsplash access key** | Optional — [unsplash.com/developers](https://unsplash.com/developers) |
-| **Linear API key** | Linear → Settings → Account → API |
-| **Asana token** | Asana → My settings → Apps → Personal access tokens |
-| **Focus sites** | Hostnames for the soft-block overlay during focus |
-| **World clock cities** | Label + IANA timezone |
-| **Search engine** | Google, DuckDuckGo, or Bing |
+| Setting | Where to get it |
+|---------|----------------|
+| **Your name** | Just type it |
+| **UI font** | Any [Google Font](https://fonts.google.com) name |
+| **Unsplash access key** | [unsplash.com/developers](https://unsplash.com/developers) → New Application |
+| **Linear API key** | Linear → Settings → Account → API → Personal API keys |
+| **Asana personal token** | Asana → My Profile → Apps → Manage Developer Apps → New token |
+| **Focus block-list** | Hostnames (e.g. `twitter.com`) shown in the soft-block overlay during focus |
+| **World clock cities** | Label + IANA timezone string |
+| **Search engine** | Google / DuckDuckGo / Bing |
+| **Units** | Metric / Imperial (weather) |
 
 ---
 
-## TODO
+## Ambient sounds
 
-- **Calendar integration**
-- **More project-management tool integrations**
-- **More ambient audio** (bundle additional MP3s in `sounds` / `src/assets/sounds` and wire in `sounds.ts`)
+Only **Rainfall** is bundled in v0.1. To add more sounds:
+
+1. Download a loopable MP3 (e.g. from [freesound.org](https://freesound.org))
+2. Place it in `src/assets/sounds/` with the matching filename (`ocean.mp3`, `forest.mp3`, `white-noise.mp3`, `brown-noise.mp3`, `binaural.mp3`)
+3. Add a matching import + entry in `BUNDLED` inside `src/lib/sounds.ts`
+4. Run `npm run build`
 
 ---
 
-## Architecture (overview)
+## Architecture
 
 ```
 src/
-  background/     # MV3 service worker — alarms, sync, focus end
-  content/          # focus-gate soft-block script
-  newtab/           # React new-tab UI
-  options/          # Settings page
-  lib/              # Asana, Linear, tasks, sounds, Unsplash, storage, …
+  background/     MV3 service worker — alarms, Asana/Linear sync, focus end
+  content/        Focus Gate soft-block content script
+  newtab/         React new-tab UI (components, hooks, pages)
+  options/        Settings page
+  lib/            Shared logic — storage, tasks, sounds, Asana, Linear, Unsplash, …
+  assets/         Icons, bundled audio
 ```
 
-State lives in `chrome.storage.local`; `useMoment` listens to `onChanged` for live updates.
+State lives entirely in `chrome.storage.local`. The `useMoment` hook subscribes to `onChanged` for live reactive updates across tabs.
+
+---
+
+## Development
+
+```bash
+npm run dev     # Vite dev server + watch — reload the unpacked extension after each save
+npm run build   # Production build → dist/
+npm run lint    # TypeScript type-check (no emit)
+```
 
 ---
 
 ## Privacy
 
-- Data stays in **`chrome.storage.local`**
-- Network: Unsplash (optional), Asana/Linear when configured, Open-Meteo for weather
-- No telemetry or analytics
+No data leaves your device except to the services you explicitly configure (Asana, Linear) or enable (Unsplash wallpapers, Open-Meteo weather). No analytics, telemetry, or ad networks.
+
+→ Full policy: [PRIVACY.md](PRIVACY.md)
 
 ---
 
-## Contributors
+## Roadmap
 
-See [CONTRIBUTORS.md](CONTRIBUTORS.md) — including [Claude](https://www.anthropic.com/claude) and [Cursor](https://cursor.com) as development assistants.
+- [ ] Calendar integration
+- [ ] More ambient sound presets
+- [ ] More project-management integrations (Jira, GitHub Issues, Todoist)
+- [ ] Offline wallpaper fallback gallery
 
 ---
 
 ## Contributing
 
-Pull requests welcome. For larger changes, open an issue first.
+PRs are welcome. For significant changes, open an issue first to discuss.
 
-```bash
-npm run dev    # dev build with HMR
-npm run build  # production → dist/
-```
+See [CONTRIBUTORS.md](CONTRIBUTORS.md) for the full list — including [Claude](https://www.anthropic.com/claude) and [Cursor](https://cursor.com) as development assistants.
 
 ---
 
 ## License
 
-MIT — do whatever you'd like.
+[MIT](LICENSE) — do whatever you like.

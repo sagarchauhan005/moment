@@ -71,6 +71,22 @@ export async function createLinearFlowIssue(
   return id;
 }
 
+export async function deleteLinearIssue(apiKey: string, issueId: string): Promise<void> {
+  await gql(apiKey, `
+    mutation DeleteIssue($issueId: String!) {
+      issueDelete(id: $issueId) { success }
+    }
+  `, { issueId });
+}
+
+export async function renameLinearIssue(apiKey: string, issueId: string, title: string): Promise<void> {
+  await gql(apiKey, `
+    mutation RenameIssue($issueId: String!, $title: String!) {
+      issueUpdate(id: $issueId, input: { title: $title }) { success }
+    }
+  `, { issueId, title });
+}
+
 export async function completeLinearIssue(apiKey: string, issueId: string): Promise<void> {
   const stateRes = await gql(apiKey, `
     query IssueWithStates($id: String!) {
