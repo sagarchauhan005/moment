@@ -140,11 +140,30 @@ No data leaves your device except to the services you explicitly configure (Asan
 
 ---
 
-## Contributing
+## Contributors
+
+<!-- ALL-CONTRIBUTORS-LIST:START -->
+<table>
+  <tr>
+    <td align="center">
+      <a href="https://github.com/sagarchauhan005">
+        <img src="https://github.com/sagarchauhan005.png?size=100" width="80" alt="Sagar Chauhan" /><br />
+        <sub><b>Sagar Chauhan</b></sub>
+      </a><br />
+      <sub>Author &amp; Maintainer</sub>
+    </td>
+    <td align="center">
+      <a href="https://www.anthropic.com/claude">
+        <img src="https://github.com/anthropics.png?size=100" width="80" alt="Claude" /><br />
+        <sub><b>Claude</b></sub>
+      </a><br />
+      <sub>AI Development Assistant</sub>
+    </td>
+  </tr>
+</table>
+<!-- ALL-CONTRIBUTORS-LIST:END -->
 
 PRs are welcome. For significant changes, open an issue first to discuss.
-
-See [CONTRIBUTORS.md](CONTRIBUTORS.md) for the full list — including [Claude](https://www.anthropic.com/claude) and [Cursor](https://cursor.com) as development assistants.
 
 ---
 
