@@ -42,7 +42,7 @@ export const DEFAULT_PREFS: UserPrefs = {
     { id: "l3", title: "GitHub", url: "https://github.com" },
     { id: "l4", title: "Linear", url: "https://linear.app" },
   ],
-  searchEngine: "google",
+
   activeListId: "inbox",
   units: "metric",
 };

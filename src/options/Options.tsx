@@ -9,7 +9,6 @@ import {
   Link2,
   Brain,
   Globe2,
-  Search as SearchIcon,
   Type,
   Info,
 } from "lucide-react";
@@ -24,7 +23,6 @@ type SectionId =
   | "appearance"
   | "wallpaper"
   | "integrations"
-  | "search"
   | "focus"
   | "worldclock"
   | "about";
@@ -34,7 +32,6 @@ const NAV: { id: SectionId; label: string; Icon: typeof User }[] = [
   { id: "appearance", label: "Appearance", Icon: Type },
   { id: "wallpaper", label: "Wallpaper", Icon: ImageIcon },
   { id: "integrations", label: "Task integrations", Icon: Link2 },
-  { id: "search", label: "Search", Icon: SearchIcon },
   { id: "focus", label: "Focus mode", Icon: Brain },
   { id: "worldclock", label: "World clock", Icon: Globe2 },
   { id: "about", label: "About", Icon: Info },
@@ -315,34 +312,6 @@ export function Options() {
                 <span className="text-[12px] text-white/55">{syncMsg}</span>
               )}
             </div>
-          </Section>
-
-          <Section id="search" title="Search">
-            <label className="field-label">Default search engine</label>
-            <div className="flex gap-2">
-              {(["google", "duckduckgo", "bing"] as const).map((e) => (
-                <button
-                  key={e}
-                  onClick={() => save({ searchEngine: e })}
-                  className={`btn ${prefs.searchEngine === e ? "primary" : ""}`}
-                >
-                  {e === "duckduckgo"
-                    ? "DuckDuckGo"
-                    : e[0].toUpperCase() + e.slice(1)}
-                </button>
-              ))}
-            </div>
-            <p className="text-xs text-white/45 mt-3">
-              On the new tab, press{" "}
-              <kbd className="px-1.5 py-0.5 rounded bg-white/10 text-[11px]">
-                /
-              </kbd>{" "}
-              or{" "}
-              <kbd className="px-1.5 py-0.5 rounded bg-white/10 text-[11px]">
-                ⌘K
-              </kbd>{" "}
-              to open search.
-            </p>
           </Section>
 
           <Section id="focus" title="Focus mode">

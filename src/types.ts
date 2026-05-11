@@ -68,7 +68,7 @@ export interface UserPrefs {
   asanaToken?: string;
   asanaFlowProjectGid?: string;
   links: QuickLink[];
-  searchEngine: "google" | "duckduckgo" | "bing";
+
   activeListId: string;
   units: "metric" | "imperial";
   uiFont?: string;
