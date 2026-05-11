@@ -11,7 +11,7 @@ import { FocusMode } from "./components/FocusMode";
 import { WorldClockPanel } from "./components/WorldClockPanel";
 import { AnalyticsPanel } from "./components/AnalyticsPanel";
 import { LinksPanel } from "./components/LinksPanel";
-
+import { SearchPanel } from "./components/SearchPanel";
 import { Onboarding } from "./components/Onboarding";
 import { tasksForList } from "@/lib/tasks";
 import { applyUIFont } from "@/lib/fonts";
@@ -23,6 +23,7 @@ export type PanelKey =
   | "worldclock"
   | "analytics"
   | "links"
+  | "search"
   | null;
 
 export function App() {
@@ -52,12 +53,24 @@ export function App() {
     if (!state.focus.active) setFocusOverlayDismissed(false);
   }, [state.focus.active]);
 
-  // Keyboard shortcut: Escape closes panels.
+  // Keyboard shortcuts: "/" or Cmd/Ctrl+K open search; Escape closes panels.
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const typingInField =
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable);
       if (e.key === "Escape") {
         setPanel(null);
         setFocusOverlayDismissed(true);
+        return;
+      }
+      if (typingInField) return;
+      if (e.key === "/" || ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k")) {
+        e.preventDefault();
+        setPanel("search");
       }
     };
     window.addEventListener("keydown", handler);
@@ -174,6 +187,10 @@ export function App() {
           onClose={() => setPanel(null)}
         />
       )}
+      {panel === "search" && (
+        <SearchPanel onClose={() => setPanel(null)} />
+      )}
+
       {showOnboarding && (
         <Onboarding onDone={() => setShowOnboarding(false)} />
       )}

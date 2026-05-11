@@ -1,4 +1,4 @@
-import { BrainCircuit, Clock4, BarChart3, ExternalLink } from "lucide-react";
+import { BrainCircuit, Clock4, BarChart3, ExternalLink, Search } from "lucide-react";
 import type { PanelKey } from "../App";
 
 export function TopBar({ onOpen }: { onOpen: (p: PanelKey) => void }) {
@@ -7,6 +7,7 @@ export function TopBar({ onOpen }: { onOpen: (p: PanelKey) => void }) {
     { key: "focus", label: "Focus", Icon: BrainCircuit },
     { key: "worldclock", label: "Clock", Icon: Clock4 },
     { key: "analytics", label: "Stats", Icon: BarChart3 },
+    { key: "search", label: "Search", Icon: Search },
   ];
   return (
     <div className="absolute top-4 left-4 flex gap-1 animate-fade-in z-10">

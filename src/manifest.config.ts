@@ -5,7 +5,7 @@ export default defineManifest({
   name: "Moment — A beautiful new tab",
   description:
     "A minimalist new tab experience with tasks, focus mode, world clock, and daily inspiration.",
-  version: "0.1.2",
+  version: "0.1.3",
   chrome_url_overrides: {
     newtab: "src/newtab/index.html",
   },
@@ -28,7 +28,7 @@ export default defineManifest({
       all_frames: false,
     },
   ],
-  permissions: ["storage", "alarms"],
+  permissions: ["storage", "alarms", "search"],
   host_permissions: [
     // Asana REST API
     "https://app.asana.com/*",
