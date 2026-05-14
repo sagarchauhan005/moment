@@ -70,8 +70,9 @@ export function TaskInbox({
   const isWithinTTL = (ts?: number | null) => !!ts && Date.now() - ts < INBOX_TTL;
 
   const initialOpenedAt = isWithinTTL(prefs.taskInboxOpenedAt) ? (prefs.taskInboxOpenedAt ?? null) : null;
-  const [openedAt, setOpenedAt]   = useState<number | null>(initialOpenedAt);
-  const [open, setOpen]           = useState(() => !!initialOpenedAt);
+  // Default open on every new tab — if no stored timestamp use now so the TTL timer still works.
+  const [openedAt, setOpenedAt]   = useState<number | null>(initialOpenedAt ?? Date.now());
+  const [open, setOpen]           = useState(true);
   const [picker, setPicker]       = useState(false);
   const [adding, setAdding]       = useState(false);
   const [draft, setDraft]         = useState("");
