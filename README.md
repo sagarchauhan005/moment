@@ -1,7 +1,7 @@
 # Moment — A Beautiful New Tab
 
 <p align="center">
-  <a href="https://chromewebstore.google.com/detail/moment/TODO_REPLACE_WITH_CWS_ID">
+  <a href="https://chromewebstore.google.com/detail/moment-%E2%80%94-a-beautiful-new/dgakabbcknafjoibjbkelpamdcoldage">
     <img src="https://img.shields.io/badge/Chrome%20Web%20Store-Install-4285F4?logo=googlechrome&logoColor=white" alt="Install from Chrome Web Store" />
   </a>
   <a href="https://github.com/sagarchauhan005/moment/releases">
@@ -49,8 +49,7 @@
 
 ### From the Chrome Web Store _(recommended)_
 
-> **Coming soon** — submission in progress.  
-> Star / watch this repo to be notified when it goes live.
+**[→ Install Moment from the Chrome Web Store](https://chromewebstore.google.com/detail/moment-%E2%80%94-a-beautiful-new/dgakabbcknafjoibjbkelpamdcoldage)**
 
 ### Load unpacked (Developer mode)
 
