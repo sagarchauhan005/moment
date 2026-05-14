@@ -52,7 +52,7 @@ export function GoogleAppsPanel({ onClose }: { onClose: () => void }) {
   return (
     <div
       ref={ref}
-      className="absolute top-14 left-4 z-50 w-[272px] glass rounded-2xl p-4 animate-scale-in shadow-2xl"
+      className="absolute top-12 right-0 z-50 w-[272px] glass rounded-2xl p-4 animate-scale-in shadow-2xl"
     >
       {/* Header */}
       <div className="flex items-center justify-between mb-3 px-0.5">

@@ -86,7 +86,7 @@ export function StatsBar({
       : null;
 
   return (
-    <div className="absolute top-5 right-6 flex gap-7 animate-fade-in">
+    <div className="flex gap-7">
       <Stat
         Icon={Target}
         label="Focused Today"

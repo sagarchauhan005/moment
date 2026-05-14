@@ -12,11 +12,12 @@ import { WorldClockPanel } from "./components/WorldClockPanel";
 import { AnalyticsPanel } from "./components/AnalyticsPanel";
 import { LinksPanel } from "./components/LinksPanel";
 import { SearchPanel } from "./components/SearchPanel";
+import { GoogleAppsPanel } from "./components/GoogleAppsPanel";
 import { Onboarding } from "./components/Onboarding";
 import { tasksForList } from "@/lib/tasks";
 import { applyUIFont } from "@/lib/fonts";
 import { refreshWallpaper } from "@/lib/unsplash";
-import { Settings } from "lucide-react";
+import { Settings, Grid3x3 } from "lucide-react";
 
 export type PanelKey =
   | "focus"
@@ -33,6 +34,7 @@ export function App() {
   const [focusOverlayDismissed, setFocusOverlayDismissed] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [wallpaperBusy, setWallpaperBusy] = useState(false);
+  const [showApps, setShowApps] = useState(false);
 
   const tasksToday = useMemo(
     () => tasksForList(state.tasks, "today").filter((t) => !t.completed).length,
@@ -108,11 +110,30 @@ export function App() {
         />
       )}
       {!focusActive && (
-        <StatsBar
-          dailyLogs={state.dailyLogs}
-          focus={state.focus}
-          tasksTodayCount={tasksToday}
-        />
+        <div className="absolute top-4 right-4 flex items-center gap-3 z-40 animate-fade-in">
+          {/* Google Apps waffle — top-right, mirrors Gmail/Search placement */}
+          <div className="relative">
+            <button
+              onClick={() => setShowApps((v) => !v)}
+              className={`nav-chip ${showApps ? "bg-white/20" : ""}`}
+              title="Google Apps"
+            >
+              <Grid3x3 className="w-[18px] h-[18px]" strokeWidth={1.5} />
+              <span>Apps</span>
+            </button>
+            {showApps && (
+              <GoogleAppsPanel onClose={() => setShowApps(false)} />
+            )}
+          </div>
+
+          <div className="w-px bg-white/15 self-stretch my-1" />
+
+          <StatsBar
+            dailyLogs={state.dailyLogs}
+            focus={state.focus}
+            tasksTodayCount={tasksToday}
+          />
+        </div>
       )}
 
       {!focusActive && (
