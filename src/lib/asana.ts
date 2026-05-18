@@ -44,6 +44,47 @@ async function asanaDelete(token: string, path: string) {
   if (!res.ok) await asanaThrow(res, path);
 }
 
+/** Shape returned by fetchFlowTasks — minimal fields needed for 2-way sync */
+export interface AsanaRemoteTask {
+  gid: string;
+  name: string;
+  completed: boolean;
+  /** ISO-8601 string from Asana, e.g. "2024-05-01T10:00:00.000Z" */
+  modified_at: string;
+}
+
+/**
+ * Fetch all tasks in the given Asana project (incomplete + recently completed).
+ * We pull up to 200 tasks; for most users this is sufficient.
+ */
+export async function fetchFlowTasks(
+  token: string,
+  projectGid: string
+): Promise<AsanaRemoteTask[]> {
+  // Pull incomplete tasks
+  const incompleteRes = await asanaGet(token, "/tasks", {
+    project: projectGid,
+    opt_fields: "gid,name,completed,modified_at",
+    completed_since: "now", // only incomplete
+    limit: "100",
+  });
+
+  // Pull tasks completed in the last 7 days so we can reflect remote completions
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const completedRes = await asanaGet(token, "/tasks", {
+    project: projectGid,
+    opt_fields: "gid,name,completed,modified_at",
+    completed_since: sevenDaysAgo,
+    limit: "100",
+  });
+
+  const all = new Map<string, AsanaRemoteTask>();
+  for (const t of [...(incompleteRes.data ?? []), ...(completedRes.data ?? [])]) {
+    all.set(t.gid, t as AsanaRemoteTask);
+  }
+  return Array.from(all.values());
+}
+
 export async function testAsanaToken(token: string): Promise<{ name: string; email: string }> {
   const me = await asanaGet(token, "/users/me", { opt_fields: "name,email" });
   return { name: me.data?.name ?? "Unknown", email: me.data?.email ?? "" };

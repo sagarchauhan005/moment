@@ -16,7 +16,7 @@ import { store } from "@/lib/storage";
 import { normalizeSite } from "@/lib/focus";
 import { FONT_GROUPS, applyUIFont, loadGoogleFont } from "@/lib/fonts";
 import { testAsanaToken } from "@/lib/asana";
-import type { UserPrefs, WorldClockCity } from "@/types";
+import type { SyncMeta, UserPrefs, WorldClockCity } from "@/types";
 
 type SectionId =
   | "you"
@@ -44,6 +44,7 @@ export function Options() {
   const [saved, setSaved] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
+  const [syncMeta, setSyncMeta] = useState<SyncMeta | null>(null);
   const [testingAsana, setTestingAsana] = useState(false);
   const [asanaTestMsg, setAsanaTestMsg] = useState<string | null>(null);
   const [active, setActive] = useState<SectionId>("you");
@@ -53,6 +54,7 @@ export function Options() {
       setPrefs(p);
       applyUIFont(p.uiFont);
     });
+    void store.getSyncMeta().then(setSyncMeta);
   }, []);
 
   // Scroll-spy: highlight nav item whose section is most visible.
@@ -142,13 +144,15 @@ export function Options() {
     try {
       const res = await chrome.runtime.sendMessage({ type: "remote-sync-now" });
       if (res?.ok) {
-        const s = res.summary as { pushed: number; errors: string[] };
-        const msg = s.pushed > 0
-          ? `Pushed ${s.pushed} task${s.pushed !== 1 ? "s" : ""} to Flow`
-          : "All tasks already synced.";
-        setSyncMsg(
-          s.errors.length ? `${msg} · ${s.errors.join("; ")}` : msg
-        );
+        const s = res.summary as { pushed: number; pulled: number; errors: string[] };
+        const parts: string[] = [];
+        if (s.pulled > 0) parts.push(`Pulled ${s.pulled} task${s.pulled !== 1 ? "s" : ""}`);
+        if (s.pushed > 0) parts.push(`pushed ${s.pushed}`);
+        if (parts.length === 0) parts.push("Everything up to date");
+        const msg = parts.join(" · ");
+        setSyncMsg(s.errors.length ? `${msg} · ${s.errors.join("; ")}` : msg);
+        // Refresh last-sync metadata display
+        void store.getSyncMeta().then(setSyncMeta);
       } else setSyncMsg(res?.error ?? "Sync failed.");
     } catch (e) {
       setSyncMsg((e as Error).message);
@@ -296,7 +300,7 @@ export function Options() {
               )}
             </div>
 
-            <div className="mt-5 flex items-center gap-3">
+            <div className="mt-5 flex items-center gap-3 flex-wrap">
               <button
                 onClick={triggerSync}
                 disabled={syncing}
@@ -312,6 +316,26 @@ export function Options() {
                 <span className="text-[12px] text-white/55">{syncMsg}</span>
               )}
             </div>
+            {syncMeta && !syncing && (
+              <p className="mt-2 text-[11.5px] text-white/35">
+                Last synced{" "}
+                {new Date(syncMeta.lastSyncAt).toLocaleString(undefined, {
+                  dateStyle: "medium",
+                  timeStyle: "short",
+                })}
+                {(syncMeta.lastPulled > 0 || syncMeta.lastPushed > 0) && (
+                  <>
+                    {" "}·{" "}
+                    {[
+                      syncMeta.lastPulled > 0 && `${syncMeta.lastPulled} pulled`,
+                      syncMeta.lastPushed > 0 && `${syncMeta.lastPushed} pushed`,
+                    ]
+                      .filter(Boolean)
+                      .join(", ")}
+                  </>
+                )}
+              </p>
+            )}
           </Section>
 
           <Section id="focus" title="Focus mode">

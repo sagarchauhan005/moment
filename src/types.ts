@@ -11,6 +11,8 @@ export interface Task {
   title: string;
   completed: boolean;
   createdAt: number;
+  /** Epoch ms of last local mutation — used for Last-Write-Wins conflict resolution */
+  updatedAt?: number;
   completedAt?: number;
   dueAt?: number;
   source: TaskSource;
@@ -18,6 +20,14 @@ export interface Task {
   listId: string;
   priority?: "high" | "medium" | "low" | null;
   sortOrder?: number;
+}
+
+/** Persisted metadata about the last remote sync cycle */
+export interface SyncMeta {
+  lastSyncAt: number;       // epoch ms
+  lastPulled: number;       // tasks pulled/updated from remote in the last run
+  lastPushed: number;       // tasks pushed to remote in the last run
+  lastError?: string;
 }
 
 export interface TaskList {

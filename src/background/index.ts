@@ -6,6 +6,7 @@ import {
   createLinearFlowIssue,
   deleteLinearIssue,
   ensureFlowProject as ensureLinearFlowProject,
+  fetchFlowIssues,
   renameLinearIssue,
 } from "@/lib/linear";
 import {
@@ -13,9 +14,10 @@ import {
   createAsanaFlowTask,
   deleteAsanaTask,
   ensureFlowProject as ensureAsanaFlowProject,
+  fetchFlowTasks,
   renameAsanaTask,
 } from "@/lib/asana";
-import type { TaskSource } from "@/types";
+import type { Task, TaskSource } from "@/types";
 
 // --- Lifecycle --------------------------------------------------------
 
@@ -197,14 +199,17 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
 interface SyncSummary {
   pushed: number;
+  pulled: number;
   errors: string[];
 }
 
 async function syncAllRemote(): Promise<SyncSummary> {
   const prefs = await store.getPrefs();
-  const summary: SyncSummary = { pushed: 0, errors: [] };
+  const summary: SyncSummary = { pushed: 0, pulled: 0, errors: [] };
+  const syncStartedAt = Date.now();
 
-  // Ensure Flow projects exist in connected tools on first sync.
+  // ── 1. Ensure Flow projects exist in connected tools on first sync ──────
+
   if (prefs.asanaToken && !prefs.asanaFlowProjectGid) {
     try {
       const gid = await ensureAsanaFlowProject(prefs.asanaToken);
@@ -225,15 +230,160 @@ async function syncAllRemote(): Promise<SyncSummary> {
     }
   }
 
-  // Push any local tasks that haven't been synced to an external tool yet.
-  const tasks = await store.getTasks();
+  // ── 2. PULL: fetch remote tasks and reconcile with local storage ────────
+
+  let tasks = await store.getTasks();
+  const prevSyncAt = (await store.getSyncMeta())?.lastSyncAt ?? 0;
+
+  // Helper: parse an ISO date string → epoch ms (0 if invalid)
+  const toMs = (iso: string | undefined): number => {
+    if (!iso) return 0;
+    const ms = Date.parse(iso);
+    return isNaN(ms) ? 0 : ms;
+  };
+
+  // ── 2a. Pull from Asana ──────────────────────────────────────────────────
+  if (prefs.asanaToken && prefs.asanaFlowProjectGid) {
+    try {
+      const remote = await fetchFlowTasks(prefs.asanaToken, prefs.asanaFlowProjectGid);
+      const remoteIds = new Set(remote.map((r) => r.gid));
+
+      for (const remoteTask of remote) {
+        const remoteMs = toMs(remoteTask.modified_at);
+        const localIdx = tasks.findIndex(
+          (t) => t.externalId === remoteTask.gid && t.source === "asana"
+        );
+
+        if (localIdx === -1) {
+          // New task exists on remote but not locally → import it
+          const newTask: Task = {
+            id: `t_${crypto.randomUUID()}`,
+            title: remoteTask.name,
+            completed: remoteTask.completed,
+            completedAt: remoteTask.completed ? remoteMs : undefined,
+            createdAt: remoteMs || Date.now(),
+            updatedAt: remoteMs || Date.now(),
+            source: "asana",
+            externalId: remoteTask.gid,
+            listId: "flow",
+          };
+          tasks = [newTask, ...tasks];
+          summary.pulled++;
+        } else {
+          // Task exists locally — apply Last-Write-Wins
+          const local = tasks[localIdx];
+          const localMs = local.updatedAt ?? local.createdAt;
+          let changed = false;
+
+          if (remoteMs > localMs) {
+            // Remote is newer — apply remote changes
+            let patch: Partial<Task> = { updatedAt: remoteMs };
+            if (local.title !== remoteTask.name) {
+              patch = { ...patch, title: remoteTask.name };
+              changed = true;
+            }
+            if (!local.completed && remoteTask.completed) {
+              patch = { ...patch, completed: true, completedAt: remoteMs };
+              changed = true;
+            } else if (local.completed && !remoteTask.completed) {
+              patch = { ...patch, completed: false, completedAt: undefined };
+              changed = true;
+            }
+            if (changed) {
+              tasks[localIdx] = { ...local, ...patch };
+              summary.pulled++;
+            }
+          }
+          // else: local is newer or equal — keep local, it will push on next cycle
+        }
+      }
+
+      // Remote deletion: remove local tasks whose externalId is no longer in
+      // the remote set AND that haven't been modified locally since last sync.
+      tasks = tasks.filter((t) => {
+        if (t.source !== "asana" || !t.externalId) return true;
+        if (remoteIds.has(t.externalId)) return true;
+        // Not on remote — delete locally only if user hasn't touched it since last sync
+        const localMs = t.updatedAt ?? t.createdAt;
+        return localMs > prevSyncAt; // modified locally → keep (will re-push)
+      });
+    } catch (e) {
+      summary.errors.push(`Asana pull: ${(e as Error).message}`);
+    }
+  }
+
+  // ── 2b. Pull from Linear ─────────────────────────────────────────────────
+  if (prefs.linearApiKey && prefs.linearFlowProjectId) {
+    try {
+      const [projectId] = prefs.linearFlowProjectId.split("|");
+      const remote = await fetchFlowIssues(prefs.linearApiKey, projectId);
+      const remoteIds = new Set(remote.map((r) => r.id));
+
+      for (const remoteIssue of remote) {
+        const remoteMs = toMs(remoteIssue.updatedAt);
+        const localIdx = tasks.findIndex(
+          (t) => t.externalId === remoteIssue.id && t.source === "linear"
+        );
+
+        if (localIdx === -1) {
+          // New issue on Linear not in local store → import
+          const newTask: Task = {
+            id: `t_${crypto.randomUUID()}`,
+            title: remoteIssue.title,
+            completed: remoteIssue.completed,
+            completedAt: remoteIssue.completed ? remoteMs : undefined,
+            createdAt: remoteMs || Date.now(),
+            updatedAt: remoteMs || Date.now(),
+            source: "linear",
+            externalId: remoteIssue.id,
+            listId: "flow",
+          };
+          tasks = [newTask, ...tasks];
+          summary.pulled++;
+        } else {
+          const local = tasks[localIdx];
+          const localMs = local.updatedAt ?? local.createdAt;
+          let changed = false;
+
+          if (remoteMs > localMs) {
+            let patch: Partial<Task> = { updatedAt: remoteMs };
+            if (local.title !== remoteIssue.title) {
+              patch = { ...patch, title: remoteIssue.title };
+              changed = true;
+            }
+            if (!local.completed && remoteIssue.completed) {
+              patch = { ...patch, completed: true, completedAt: remoteMs };
+              changed = true;
+            } else if (local.completed && !remoteIssue.completed) {
+              patch = { ...patch, completed: false, completedAt: undefined };
+              changed = true;
+            }
+            if (changed) {
+              tasks[localIdx] = { ...local, ...patch };
+              summary.pulled++;
+            }
+          }
+        }
+      }
+
+      // Remote deletion
+      tasks = tasks.filter((t) => {
+        if (t.source !== "linear" || !t.externalId) return true;
+        if (remoteIds.has(t.externalId)) return true;
+        const localMs = t.updatedAt ?? t.createdAt;
+        return localMs > prevSyncAt;
+      });
+    } catch (e) {
+      summary.errors.push(`Linear pull: ${(e as Error).message}`);
+    }
+  }
+
+  // ── 3. PUSH: local tasks without externalId → create on remote ──────────
+
   const unsynced = tasks.filter(
     (t) => t.source === "local" && !t.externalId && !t.completed
   );
 
-  if (unsynced.length === 0) return summary;
-
-  const updated = [...tasks];
   for (const task of unsynced) {
     try {
       let externalId: string | undefined;
@@ -258,8 +408,8 @@ async function syncAllRemote(): Promise<SyncSummary> {
       }
 
       if (externalId && source) {
-        const idx = updated.findIndex((t) => t.id === task.id);
-        if (idx !== -1) updated[idx] = { ...updated[idx], externalId, source };
+        const idx = tasks.findIndex((t2) => t2.id === task.id);
+        if (idx !== -1) tasks[idx] = { ...tasks[idx], externalId, source };
         summary.pushed++;
       }
     } catch (e) {
@@ -267,6 +417,15 @@ async function syncAllRemote(): Promise<SyncSummary> {
     }
   }
 
-  if (summary.pushed > 0) await store.setTasks(updated);
+  // ── 4. Persist updated task list + sync metadata ─────────────────────────
+
+  await store.setTasks(tasks);
+  await store.setSyncMeta({
+    lastSyncAt: syncStartedAt,
+    lastPulled: summary.pulled,
+    lastPushed: summary.pushed,
+    lastError: summary.errors.length ? summary.errors.join("; ") : undefined,
+  });
+
   return summary;
 }

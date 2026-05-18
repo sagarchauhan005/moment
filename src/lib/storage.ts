@@ -1,6 +1,7 @@
 import type {
   DailyLog,
   FocusState,
+  SyncMeta,
   Task,
   TaskList,
   UserPrefs,
@@ -16,6 +17,7 @@ export const KEYS = {
   focus: "focus",
   dailyLogs: "dailyLogs",
   focusSessions: "focusSessions",
+  syncMeta: "syncMeta",
 } as const;
 
 export const DEFAULT_PREFS: UserPrefs = {
@@ -60,6 +62,7 @@ type StoreShape = {
   [KEYS.wallpaper]: WallpaperCache | null;
   [KEYS.focus]: FocusState;
   [KEYS.dailyLogs]: DailyLog[];
+  [KEYS.syncMeta]: SyncMeta | null;
 };
 
 type StoreKey = keyof StoreShape;
@@ -131,6 +134,13 @@ export const store = {
   async setDailyLogs(logs: DailyLog[]): Promise<void> {
     await set(KEYS.dailyLogs, logs);
   },
+  async getSyncMeta(): Promise<SyncMeta | null> {
+    return get(KEYS.syncMeta, null);
+  },
+  async setSyncMeta(meta: SyncMeta): Promise<void> {
+    await set(KEYS.syncMeta, meta);
+  },
+
   async appendDailyMetric(
     date: string,
     patch: Partial<Omit<DailyLog, "date">>

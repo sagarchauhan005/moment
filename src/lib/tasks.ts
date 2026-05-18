@@ -25,9 +25,10 @@ export async function toggleTask(id: string): Promise<Task | null> {
   const idx = tasks.findIndex((t) => t.id === id);
   if (idx === -1) return null;
   const prev = tasks[idx];
+  const now = Date.now();
   const next: Task = prev.completed
-    ? { ...prev, completed: false, completedAt: undefined }
-    : { ...prev, completed: true, completedAt: Date.now() };
+    ? { ...prev, completed: false, completedAt: undefined, updatedAt: now }
+    : { ...prev, completed: true, completedAt: now, updatedAt: now };
   tasks[idx] = next;
   await store.setTasks(tasks);
   await store.appendDailyMetric(todayISO(), {
@@ -57,7 +58,7 @@ export async function renameTask(id: string, title: string): Promise<void> {
   const tasks = await store.getTasks();
   const idx = tasks.findIndex((t) => t.id === id);
   if (idx === -1) return;
-  tasks[idx] = { ...tasks[idx], title: title.trim() };
+  tasks[idx] = { ...tasks[idx], title: title.trim(), updatedAt: Date.now() };
   await store.setTasks(tasks);
 }
 

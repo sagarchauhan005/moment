@@ -12,6 +12,59 @@ async function gql(apiKey: string, query: string, variables?: Record<string, unk
   return json;
 }
 
+/** Minimal shape returned by fetchFlowIssues */
+export interface LinearRemoteIssue {
+  id: string;
+  title: string;
+  /** true when the issue's state type is "completed" or "cancelled" */
+  completed: boolean;
+  /** ISO-8601 string, e.g. "2024-05-01T10:00:00.000Z" */
+  updatedAt: string;
+}
+
+/**
+ * Fetch all issues in the given Linear project that are not cancelled,
+ * plus recently completed ones (last 7 days).
+ */
+export async function fetchFlowIssues(
+  apiKey: string,
+  projectId: string
+): Promise<LinearRemoteIssue[]> {
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+  const res = await gql(apiKey, `
+    query FetchFlowIssues($projectId: String!, $updatedAfter: DateTime!) {
+      project(id: $projectId) {
+        issues(
+          first: 200
+          filter: {
+            or: [
+              { state: { type: { nin: ["cancelled"] } } }
+              { updatedAt: { gte: $updatedAfter } }
+            ]
+          }
+        ) {
+          nodes {
+            id
+            title
+            updatedAt
+            state { type }
+          }
+        }
+      }
+    }
+  `, { projectId, updatedAfter: sevenDaysAgo });
+
+  const nodes = res.data?.project?.issues?.nodes ?? [];
+  return (nodes as { id: string; title: string; updatedAt: string; state: { type: string } }[])
+    .map((n) => ({
+      id: n.id,
+      title: n.title,
+      updatedAt: n.updatedAt,
+      completed: n.state.type === "completed" || n.state.type === "cancelled",
+    }));
+}
+
 export async function ensureFlowProject(apiKey: string): Promise<{ projectId: string; teamId: string }> {
   // Check for existing "Flow" project
   const findRes = await gql(apiKey, `
