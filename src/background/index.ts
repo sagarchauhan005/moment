@@ -30,10 +30,13 @@ chrome.runtime.onInstalled.addListener(async () => {
   await ensureDailyWallpaper().catch(() => null);
   await chrome.alarms.create("daily-rollover", { periodInMinutes: 60 });
   await chrome.alarms.create("remote-sync", { periodInMinutes: 15 });
+  // Trigger sync immediately on install/update so pulled tasks appear right away
+  await syncAllRemote().catch(() => null);
 });
 
 chrome.runtime.onStartup?.addListener(async () => {
   await ensureDailyWallpaper().catch(() => null);
+  await syncAllRemote().catch(() => null);
 });
 
 // --- Alarms -----------------------------------------------------------
@@ -272,6 +275,20 @@ async function syncAllRemote(): Promise<SyncSummary> {
     } catch (e) {
       summary.errors.push(`Linear setup: ${(e as Error).message}`);
     }
+  }
+
+  // ── 1b. One-time migration: fix tasks imported with listId:"flow" ──────────
+  //   v0.1.6 imported remote tasks into the "flow" list instead of "inbox".
+  //   Migrate them now so they appear in Task Inbox.
+  {
+    const allTasks = await store.getTasks();
+    const migrated = allTasks.map((t) =>
+      (t.source === "asana" || t.source === "linear") && t.listId === "flow"
+        ? { ...t, listId: "inbox" as const }
+        : t
+    );
+    const needsMigration = migrated.some((t, i) => t.listId !== allTasks[i].listId);
+    if (needsMigration) await store.setTasks(migrated);
   }
 
   // ── 2. PULL: fetch remote tasks and reconcile with local storage ────────
