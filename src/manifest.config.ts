@@ -5,7 +5,7 @@ export default defineManifest({
   name: "Moment — A beautiful new tab",
   description:
     "A minimalist new tab experience with tasks, focus mode, world clock, and daily inspiration.",
-  version: "0.1.7",
+  version: "0.1.8",
   chrome_url_overrides: {
     newtab: "src/newtab/index.html",
   },

@@ -14,7 +14,7 @@ import {
   createAsanaFlowTask,
   deleteAsanaTask,
   ensureFlowProject as ensureAsanaFlowProject,
-  fetchMyAssignedTasks,
+  fetchFlowTasks,
   renameAsanaTask,
 } from "@/lib/asana";
 import type { Task, TaskSource } from "@/types";
@@ -243,11 +243,11 @@ async function syncAllRemote(): Promise<SyncSummary> {
   };
 
   // ── 2a. Pull from Asana ──────────────────────────────────────────────────
-  //   Pull is gated on token only — we fetch ALL tasks assigned to the user,
-  //   not just the "Flow" project, so tasks created from any device / tool appear.
-  if (prefs.asanaToken) {
+  //   Scoped to the connected Flow project (by stored GID).
+  //   Any task added to that project from any device / tool will be pulled.
+  if (prefs.asanaToken && prefs.asanaFlowProjectGid) {
     try {
-      const remote = await fetchMyAssignedTasks(prefs.asanaToken);
+      const remote = await fetchFlowTasks(prefs.asanaToken, prefs.asanaFlowProjectGid);
       const remoteIds = new Set(remote.map((r) => r.gid));
 
       for (const remoteTask of remote) {
