@@ -45,8 +45,6 @@ export function Options() {
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
   const [syncMeta, setSyncMeta] = useState<SyncMeta | null>(null);
-  const [diagnosing, setDiagnosing] = useState(false);
-  const [diagResult, setDiagResult] = useState<Record<string, unknown> | null>(null);
   const [testingAsana, setTestingAsana] = useState(false);
   const [asanaTestMsg, setAsanaTestMsg] = useState<string | null>(null);
   const [active, setActive] = useState<SectionId>("you");
@@ -160,20 +158,6 @@ export function Options() {
       setSyncMsg((e as Error).message);
     } finally {
       setSyncing(false);
-    }
-  };
-
-  const runDiagnostic = async () => {
-    setDiagnosing(true);
-    setDiagResult(null);
-    try {
-      const res = await chrome.runtime.sendMessage({ type: "remote-diagnose" });
-      if (res?.ok) setDiagResult(res.result as Record<string, unknown>);
-      else setDiagResult({ error: res?.error ?? "Diagnostic failed" });
-    } catch (e) {
-      setDiagResult({ error: (e as Error).message });
-    } finally {
-      setDiagnosing(false);
     }
   };
 
@@ -356,51 +340,6 @@ export function Options() {
               </p>
             )}
 
-            {/* ── Diagnostic ── */}
-            <div className="mt-4 border-t border-white/[0.07] pt-4">
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={runDiagnostic}
-                  disabled={diagnosing}
-                  className="btn btn-sm disabled:opacity-40 text-white/60 hover:text-white/90"
-                >
-                  <RefreshCw
-                    className={`w-[13px] h-[13px] ${diagnosing ? "animate-spin" : ""}`}
-                    strokeWidth={1.8}
-                  />
-                  {diagnosing ? "Running…" : "Run diagnostic"}
-                </button>
-                <span className="text-[11px] text-white/30">
-                  Shows exactly what the Asana API returns
-                </span>
-              </div>
-              {diagResult && (
-                <div className="mt-3 rounded-xl bg-black/30 border border-white/[0.08] p-3 text-[11px] font-mono space-y-1 leading-relaxed">
-                  {(Object.entries(diagResult) as [string, unknown][]).map(([k, v]) => (
-                    <div key={k} className="flex gap-2">
-                      <span className="text-white/40 shrink-0 min-w-[180px]">{k}</span>
-                      <span className={`break-all ${
-                        v === false || v === null || (typeof v === "number" && v === 0)
-                          ? "text-red-400/80"
-                          : "text-emerald-400/80"
-                      }`}>
-                        {Array.isArray(v)
-                          ? v.length === 0
-                            ? "[]"
-                            : v.map((item) =>
-                                typeof item === "object"
-                                  ? `• ${(item as Record<string, unknown>).name ?? JSON.stringify(item)}`
-                                  : String(item)
-                              ).join("\n")
-                          : typeof v === "object" && v !== null
-                          ? JSON.stringify(v, null, 1)
-                          : String(v)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
           </Section>
 
           <Section id="focus" title="Focus mode">
