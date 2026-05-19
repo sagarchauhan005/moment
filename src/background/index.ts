@@ -147,6 +147,50 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     return true;
   }
 
+  // Diagnostic: raw state snapshot without modifying anything.
+  if (type === "remote-diagnose") {
+    (async () => {
+      try {
+        const prefs = await store.getPrefs();
+        const tasks = await store.getTasks();
+        const syncMeta = await store.getSyncMeta();
+        const result: Record<string, unknown> = {
+          asanaConfigured: !!prefs.asanaToken,
+          asanaProjectGid: prefs.asanaFlowProjectGid ?? null,
+          linearConfigured: !!prefs.linearApiKey,
+          linearProjectId: prefs.linearFlowProjectId ?? null,
+          localTaskCount: tasks.length,
+          localAsanaTaskCount: tasks.filter((t) => t.source === "asana").length,
+          localLinearTaskCount: tasks.filter((t) => t.source === "linear").length,
+          lastSyncAt: syncMeta?.lastSyncAt
+            ? new Date(syncMeta.lastSyncAt).toISOString()
+            : null,
+          lastSyncError: syncMeta?.lastError ?? null,
+        };
+
+        // Try fetching from Asana
+        if (prefs.asanaToken && prefs.asanaFlowProjectGid) {
+          try {
+            const remote = await fetchFlowTasks(prefs.asanaToken, prefs.asanaFlowProjectGid);
+            result.asanaRemoteTaskCount = remote.length;
+            result.asanaSampleTasks = remote.slice(0, 5).map((t) => ({
+              gid: t.gid,
+              name: t.name,
+              completed: t.completed,
+            }));
+          } catch (e) {
+            result.asanaFetchError = (e as Error).message;
+          }
+        }
+
+        sendResponse({ ok: true, result });
+      } catch (e) {
+        sendResponse({ ok: false, error: (e as Error).message });
+      }
+    })();
+    return true;
+  }
+
   // Push a locally-created Flow task to connected external tools.
   if (type === "push-flow-task") {
     (async () => {
@@ -304,14 +348,17 @@ async function syncAllRemote(): Promise<SyncSummary> {
         }
       }
 
-      // Remote deletion: remove local Asana tasks no longer returned by the API
-      // only if the user hasn't touched them since the last sync.
-      tasks = tasks.filter((t) => {
-        if (t.source !== "asana" || !t.externalId) return true;
-        if (remoteIds.has(t.externalId)) return true;
-        const localMs = t.updatedAt ?? t.createdAt;
-        return localMs > prevSyncAt; // locally modified → keep (will re-push)
-      });
+      // Remote deletion: remove local Asana tasks no longer on the remote.
+      // Safety guard: only run if remote returned > 0 tasks — an empty response
+      // could be a transient API or network issue, not a real "all deleted" state.
+      if (remote.length > 0) {
+        tasks = tasks.filter((t) => {
+          if (t.source !== "asana" || !t.externalId) return true;
+          if (remoteIds.has(t.externalId)) return true;
+          const localMs = t.updatedAt ?? t.createdAt;
+          return localMs > prevSyncAt; // locally modified → keep (will re-push)
+        });
+      }
     } catch (e) {
       summary.errors.push(`Asana pull: ${(e as Error).message}`);
     }
@@ -331,7 +378,7 @@ async function syncAllRemote(): Promise<SyncSummary> {
         );
 
         if (localIdx === -1) {
-          // New issue on Linear not in local store → import
+          // New issue on Linear not in local store → import into Task Inbox
           const newTask: Task = {
             id: `t_${crypto.randomUUID()}`,
             title: remoteIssue.title,
@@ -341,7 +388,7 @@ async function syncAllRemote(): Promise<SyncSummary> {
             updatedAt: remoteMs || Date.now(),
             source: "linear",
             externalId: remoteIssue.id,
-            listId: "flow",
+            listId: "inbox",
           };
           tasks = [newTask, ...tasks];
           summary.pulled++;
@@ -371,13 +418,15 @@ async function syncAllRemote(): Promise<SyncSummary> {
         }
       }
 
-      // Remote deletion
-      tasks = tasks.filter((t) => {
-        if (t.source !== "linear" || !t.externalId) return true;
-        if (remoteIds.has(t.externalId)) return true;
-        const localMs = t.updatedAt ?? t.createdAt;
-        return localMs > prevSyncAt;
-      });
+      // Remote deletion — guarded against empty remote (transient API issue)
+      if (remote.length > 0) {
+        tasks = tasks.filter((t) => {
+          if (t.source !== "linear" || !t.externalId) return true;
+          if (remoteIds.has(t.externalId)) return true;
+          const localMs = t.updatedAt ?? t.createdAt;
+          return localMs > prevSyncAt;
+        });
+      }
     } catch (e) {
       summary.errors.push(`Linear pull: ${(e as Error).message}`);
     }
