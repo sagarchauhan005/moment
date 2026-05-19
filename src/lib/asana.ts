@@ -44,7 +44,7 @@ async function asanaDelete(token: string, path: string) {
   if (!res.ok) await asanaThrow(res, path);
 }
 
-/** Shape returned by fetchFlowTasks — minimal fields needed for 2-way sync */
+/** Shape returned by fetchMyAssignedTasks — minimal fields for 2-way sync */
 export interface AsanaRemoteTask {
   gid: string;
   name: string;
@@ -54,35 +54,49 @@ export interface AsanaRemoteTask {
 }
 
 /**
- * Fetch all tasks in the given Asana project (incomplete + recently completed).
- * We pull up to 200 tasks; for most users this is sufficient.
+ * Fetch ALL incomplete tasks assigned to the current user across every Asana
+ * project, plus tasks completed in the last 7 days (so completions from any
+ * device are reflected locally).
+ *
+ * We do NOT scope to a single "Flow" project — the goal is to surface every
+ * task the user owns in Asana, regardless of which project it lives in.
  */
-export async function fetchFlowTasks(
-  token: string,
-  projectGid: string
-): Promise<AsanaRemoteTask[]> {
-  // Pull incomplete tasks
+export async function fetchMyAssignedTasks(token: string): Promise<AsanaRemoteTask[]> {
+  const workspace = await getWorkspace(token);
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+  // Incomplete tasks assigned to me
   const incompleteRes = await asanaGet(token, "/tasks", {
-    project: projectGid,
+    assignee: "me",
+    workspace,
     opt_fields: "gid,name,completed,modified_at",
-    completed_since: "now", // only incomplete
+    completed_since: "now", // Asana: return tasks not yet completed
     limit: "100",
   });
 
-  // Pull tasks completed in the last 7 days so we can reflect remote completions
-  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  // Tasks completed in the last 7 days assigned to me (so we can mark them done locally)
   const completedRes = await asanaGet(token, "/tasks", {
-    project: projectGid,
+    assignee: "me",
+    workspace,
     opt_fields: "gid,name,completed,modified_at",
     completed_since: sevenDaysAgo,
     limit: "100",
   });
 
+  // De-duplicate by gid (the two calls can overlap on the boundary)
   const all = new Map<string, AsanaRemoteTask>();
   for (const t of [...(incompleteRes.data ?? []), ...(completedRes.data ?? [])]) {
     all.set(t.gid, t as AsanaRemoteTask);
   }
   return Array.from(all.values());
+}
+
+/** @deprecated Use fetchMyAssignedTasks — kept for backwards-compat until callers are updated */
+export async function fetchFlowTasks(
+  token: string,
+  _projectGid: string
+): Promise<AsanaRemoteTask[]> {
+  return fetchMyAssignedTasks(token);
 }
 
 export async function testAsanaToken(token: string): Promise<{ name: string; email: string }> {

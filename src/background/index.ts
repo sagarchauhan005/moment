@@ -14,7 +14,7 @@ import {
   createAsanaFlowTask,
   deleteAsanaTask,
   ensureFlowProject as ensureAsanaFlowProject,
-  fetchFlowTasks,
+  fetchMyAssignedTasks,
   renameAsanaTask,
 } from "@/lib/asana";
 import type { Task, TaskSource } from "@/types";
@@ -243,29 +243,35 @@ async function syncAllRemote(): Promise<SyncSummary> {
   };
 
   // ── 2a. Pull from Asana ──────────────────────────────────────────────────
-  if (prefs.asanaToken && prefs.asanaFlowProjectGid) {
+  //   Pull is gated on token only — we fetch ALL tasks assigned to the user,
+  //   not just the "Flow" project, so tasks created from any device / tool appear.
+  if (prefs.asanaToken) {
     try {
-      const remote = await fetchFlowTasks(prefs.asanaToken, prefs.asanaFlowProjectGid);
+      const remote = await fetchMyAssignedTasks(prefs.asanaToken);
       const remoteIds = new Set(remote.map((r) => r.gid));
 
       for (const remoteTask of remote) {
+        // Skip tasks with no meaningful title
+        if (!remoteTask.name?.trim()) continue;
+
         const remoteMs = toMs(remoteTask.modified_at);
         const localIdx = tasks.findIndex(
           (t) => t.externalId === remoteTask.gid && t.source === "asana"
         );
 
         if (localIdx === -1) {
-          // New task exists on remote but not locally → import it
+          // New task on Asana not seen locally → import into Task Inbox
           const newTask: Task = {
             id: `t_${crypto.randomUUID()}`,
-            title: remoteTask.name,
+            title: remoteTask.name.trim(),
             completed: remoteTask.completed,
             completedAt: remoteTask.completed ? remoteMs : undefined,
             createdAt: remoteMs || Date.now(),
             updatedAt: remoteMs || Date.now(),
             source: "asana",
             externalId: remoteTask.gid,
-            listId: "flow",
+            // Land in Task Inbox so the user sees it immediately
+            listId: "inbox",
           };
           tasks = [newTask, ...tasks];
           summary.pulled++;
@@ -278,8 +284,8 @@ async function syncAllRemote(): Promise<SyncSummary> {
           if (remoteMs > localMs) {
             // Remote is newer — apply remote changes
             let patch: Partial<Task> = { updatedAt: remoteMs };
-            if (local.title !== remoteTask.name) {
-              patch = { ...patch, title: remoteTask.name };
+            if (local.title !== remoteTask.name.trim()) {
+              patch = { ...patch, title: remoteTask.name.trim() };
               changed = true;
             }
             if (!local.completed && remoteTask.completed) {
@@ -294,18 +300,17 @@ async function syncAllRemote(): Promise<SyncSummary> {
               summary.pulled++;
             }
           }
-          // else: local is newer or equal — keep local, it will push on next cycle
+          // else: local is newer — keep local; push will propagate it next cycle
         }
       }
 
-      // Remote deletion: remove local tasks whose externalId is no longer in
-      // the remote set AND that haven't been modified locally since last sync.
+      // Remote deletion: remove local Asana tasks no longer returned by the API
+      // only if the user hasn't touched them since the last sync.
       tasks = tasks.filter((t) => {
         if (t.source !== "asana" || !t.externalId) return true;
         if (remoteIds.has(t.externalId)) return true;
-        // Not on remote — delete locally only if user hasn't touched it since last sync
         const localMs = t.updatedAt ?? t.createdAt;
-        return localMs > prevSyncAt; // modified locally → keep (will re-push)
+        return localMs > prevSyncAt; // locally modified → keep (will re-push)
       });
     } catch (e) {
       summary.errors.push(`Asana pull: ${(e as Error).message}`);
